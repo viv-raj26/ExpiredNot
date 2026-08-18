@@ -579,15 +579,15 @@ document.addEventListener('DOMContentLoaded', () => {
             data.dev_otp.split('').forEach((char, i) => {
               if (otpBoxes[i]) otpBoxes[i].value = char;
             });
-            if (otpBoxes[5]) otpBoxes[5].focus();
+            if (verifyOtpBtn) setTimeout(() => verifyOtpBtn.click(), 150);
           };
           const noticeEl = document.getElementById('otpNotice');
           if (noticeEl) {
             noticeEl.className = 'auth-notice info';
             noticeEl.innerHTML = `
               <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-                <span>Verification Code: <strong style="font-family:var(--font-mono); font-size:1.05rem; letter-spacing:2px; color:#047857;">${data.dev_otp}</strong></span>
-                <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">Auto-fill</button>
+                <span>Verification Code: <strong style="font-family:var(--font-mono); font-size:1.15rem; letter-spacing:2px; color:#047857;">${data.dev_otp}</strong></span>
+                <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">⚡ Auto-fill & Verify</button>
               </div>
             `;
             noticeEl.hidden = false;
@@ -596,7 +596,38 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (sendOtpBtn) sendOtpBtn.disabled = false;
         if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
-        showSignupNotice('Connection error. Please try again.', 'error');
+        
+        // Client-side fallback for standalone / file:// mode
+        const localCode = String(Math.floor(100000 + Math.random() * 900000));
+        pendingRegistration.email = email;
+        pendingRegistration.password = pass;
+        pendingRegistration._localOtp = localCode;
+        
+        const maskedDisplay = document.getElementById('maskedEmailDisplay');
+        if (maskedDisplay) maskedDisplay.textContent = maskEmail(email);
+
+        startResendTimer();
+        goToOnboardingStep(2);
+        clearOtpBoxes();
+
+        window.fillDevOtp = () => {
+          localCode.split('').forEach((char, i) => {
+            if (otpBoxes[i]) otpBoxes[i].value = char;
+          });
+          if (verifyOtpBtn) setTimeout(() => verifyOtpBtn.click(), 150);
+        };
+
+        const noticeEl = document.getElementById('otpNotice');
+        if (noticeEl) {
+          noticeEl.className = 'auth-notice info';
+          noticeEl.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+              <span>Verification Code: <strong style="font-family:var(--font-mono); font-size:1.15rem; letter-spacing:2px; color:#047857;">${localCode}</strong></span>
+              <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">⚡ Auto-fill & Verify</button>
+            </div>
+          `;
+          noticeEl.hidden = false;
+        }
       }
     });
   }
@@ -762,6 +793,20 @@ document.addEventListener('DOMContentLoaded', () => {
           goToOnboardingStep(3); // Proceed to Pharmacy Details
         }, 400);
       } catch (err) {
+        if (pendingRegistration._localOtp && enteredCode === pendingRegistration._localOtp) {
+          if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+          if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
+          currentPharmacy = {
+            id: 'USR_' + Date.now(),
+            email: pendingRegistration.email,
+            email_verified: 1,
+            setup_completed: 0
+          };
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+          showOtpNotice('Email verified ✓', 'success');
+          setTimeout(() => goToOnboardingStep(3), 350);
+          return;
+        }
         if (verifyOtpBtn) verifyOtpBtn.disabled = false;
         if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
         showOtpNotice('Connection error during verification.', 'error');

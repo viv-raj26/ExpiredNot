@@ -207,6 +207,14 @@ def hash_otp(otp_str, salt=None):
     h = hashlib.sha256((otp_str + salt).encode('utf-8')).hexdigest()
     return h, salt
 
+def sanitize_user(user_row):
+    if not user_row:
+        return None
+    d = dict(user_row)
+    d.pop('password_hash', None)
+    d.pop('salt', None)
+    return d
+
 def mask_email(email_str):
     if not email_str or '@' not in email_str:
         return 'your email'
@@ -441,8 +449,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         if path == '/api/auth/session':
             user = self._get_auth_user()
             if user:
-                clean_user = {k: v for k, v in user.items() if k not in ('password_hash', 'salt')}
-                return self._send_json({"authenticated": True, "user": clean_user})
+                return self._send_json({"authenticated": True, "user": sanitize_user(user)})
             return self._send_json({"authenticated": False}, 401)
             
         elif path == '/api/inventory':
@@ -694,12 +701,11 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
                 conn.commit()
                 
-            clean_user = {k: v for k, v in user.items() if k not in ('password_hash', 'salt')}
             return self._send_json({
                 "success": True,
                 "message": "Email verified ✓",
                 "session_token": session_token,
-                "user": clean_user
+                "user": sanitize_user(user)
             })
 
         # ----------------------------------------------------------------------
@@ -779,7 +785,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     token = secrets.token_hex(32)
                     cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + 86400, now))
                     conn.commit()
-                    clean_user = {k: v for k, v in user.items() if k not in ('password_hash', 'salt')}
+                    clean_user = sanitize_user(user)
                     return self._send_json({
                         "success": True,
                         "needs_setup": True,
@@ -792,11 +798,10 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + (30 * 86400), now))
                 conn.commit()
                 
-            clean_user = {k: v for k, v in user.items() if k not in ('password_hash', 'salt')}
             return self._send_json({
                 "success": True,
                 "session_token": token,
-                "user": clean_user
+                "user": sanitize_user(user)
             })
 
         # ----------------------------------------------------------------------
@@ -820,12 +825,11 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     token = secrets.token_hex(32)
                     cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + (30 * 86400), now))
                     conn.commit()
-                    clean_user = {k: v for k, v in user.items() if k not in ('password_hash', 'salt')}
                     return self._send_json({
                         "success": True,
                         "existing_user": True,
                         "session_token": token,
-                        "user": clean_user
+                        "user": sanitize_user(user)
                     })
                 else:
                     # New Google user -> Verified by Google, needs pharmacy profile setup
@@ -883,8 +887,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
                 updated_user = cursor.fetchone()
                 
-            clean_user = {k: v for k, v in updated_user.items() if k not in ('password_hash', 'salt')}
-            return self._send_json({"success": True, "user": clean_user})
+            return self._send_json({"success": True, "user": sanitize_user(updated_user)})
 
         # ----------------------------------------------------------------------
         # BILLS: Confirm & Ingest Verified Bill into Real Inventory
