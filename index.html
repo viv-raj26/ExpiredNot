@@ -13,19 +13,19 @@
   <!-- Google Fonts: Outfit (Brand & Headings), Plus Jakarta Sans (Body & UI), JetBrains Mono (Codes) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   
   <!-- ==========================================================================
-       VIEW 1: MINIMAL WELCOME / SPLASH SCREEN (FIRST OPENING SCREEN)
+       VIEW 1: MINIMAL WELCOME / SPLASH SCREEN (NAMASTE ENTRANCE)
        ========================================================================== -->
   <main id="welcomeScreen" class="welcome-screen view-active" aria-label="Welcome to EXPIREDNOT">
     <div class="welcome-container anim-fade-card gradient-border-card">
       
-      <!-- Step 2: Subtle Namaste / Welcoming Gesture Icon -->
+      <!-- Subtle Namaste Gesture Icon -->
       <div class="namaste-badge anim-namaste" aria-hidden="true">
         <svg class="namaste-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2.75V15.25" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
@@ -43,12 +43,12 @@
         </svg>
       </div>
 
-      <!-- Step 3: Namaste Heading -->
+      <!-- Namaste Heading -->
       <div class="welcome-heading-wrapper anim-step-3">
         <h1 class="namaste-heading">Namaste</h1>
       </div>
 
-      <!-- Step 4 & 5: Brand Identity & Tagline Lockup -->
+      <!-- Brand Identity & Tagline Lockup -->
       <div class="welcome-brand anim-step-4">
         <div class="brand-symbol-small" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -64,14 +64,14 @@
         </div>
       </div>
 
-      <!-- Step 6: Main Welcome Message -->
+      <!-- Welcome Message -->
       <div class="welcome-copy-block anim-step-6">
         <p class="namaste-subtext">
           Welcome to EXPIREDNOT — a smarter way to stay ahead of medicine expiry.
         </p>
       </div>
 
-      <!-- Step 7: Single Primary Action Button with Refined Gradient & Shimmer -->
+      <!-- Action Button -->
       <div class="welcome-action anim-step-7">
         <button id="enterAppBtn" class="btn-welcome shimmer-btn" type="button">
           <span class="shimmer-effect" aria-hidden="true"></span>
@@ -83,7 +83,6 @@
         </button>
       </div>
 
-      <!-- Step 8: Subtle Respectful Footer Note -->
       <div class="welcome-footer-note anim-step-8">
         <span>Empowering pharmacies to prevent medicine expiry & inventory waste</span>
       </div>
@@ -92,15 +91,14 @@
   </main>
 
   <!-- ==========================================================================
-       VIEW 2: SPLASH / AUTHENTICATION & INTELLIGENCE PAGE (LOGIN)
+       VIEW 2: REAL AUTHENTICATION & LOGIN PAGE
        ========================================================================== -->
-  <div id="authScreen" class="app-layout view-hidden" aria-label="Sign In and Product Intelligence">
+  <div id="authScreen" class="app-layout view-hidden" aria-label="Sign In and Pharmacy Intelligence">
     
     <!-- LEFT SIDE: PRODUCT INTRODUCTION -->
     <section class="intro-section" aria-label="Product Overview">
       <div class="intro-content">
         
-        <!-- Brand Header -->
         <header class="brand-header onboard-step-1">
           <div class="brand-logo-lockup">
             <div class="brand-symbol" aria-hidden="true">
@@ -120,17 +118,15 @@
           </div>
         </header>
 
-        <!-- Main Value Proposition -->
         <div class="headline-container onboard-step-2">
           <h1 class="main-headline">
             Don't let valuable medicine become expired stock.
           </h1>
           <p class="supporting-copy">
-            EXPIREDNOT helps pharmacies keep track of medicine batches, spot expiry risks early, and take action before stock turns into waste and financial loss.
+            EXPIREDNOT turns your purchase invoices into a structured medicine inventory with automated batch tracking, FEFO dispensation, and early return alerts.
           </p>
         </div>
 
-        <!-- 3 Visual Benefits -->
         <div class="benefits-grid onboard-step-3" role="list">
           <div class="benefit-card" role="listitem">
             <div class="benefit-icon-box track-icon-box" aria-hidden="true">
@@ -154,7 +150,7 @@
             </div>
             <div class="benefit-body">
               <h3 class="benefit-title">Alert</h3>
-              <p class="benefit-desc">See what is approaching expiry before it becomes critical.</p>
+              <p class="benefit-desc">See approaching expiry before it becomes critical.</p>
             </div>
           </div>
 
@@ -172,38 +168,29 @@
           </div>
         </div>
 
-        <!-- Concept Preview Card for Intro -->
         <div class="inventory-preview-card gradient-border-subtle onboard-step-4" aria-label="System Intelligence Overview">
           <div class="preview-card-header">
             <div class="header-status-left">
               <span class="pulse-indicator" aria-hidden="true"></span>
               <span class="preview-card-label">Zero-Waste Engine</span>
             </div>
-            <span class="preview-tag">Pharmacy Intelligence</span>
+            <span class="preview-tag">Real Data Only</span>
           </div>
 
           <div class="concept-pillars-row">
             <div class="pillar-item">
               <div class="pillar-icon">🧾</div>
               <div class="pillar-text">
-                <strong>Smart OCR Ingestion</strong>
-                <span>Upload wholesale purchase bills to populate inventory with zero manual typing.</span>
+                <strong>AI Purchase Bill Extraction</strong>
+                <span>Upload wholesale bills to populate inventory with verified batch & expiry details.</span>
               </div>
             </div>
 
             <div class="pillar-item">
               <div class="pillar-icon">⏱️</div>
               <div class="pillar-text">
-                <strong>Batch Expiry Radar</strong>
-                <span>Automatic 90, 60, and 30-day alerts before batch expiry windows close.</span>
-              </div>
-            </div>
-
-            <div class="pillar-item">
-              <div class="pillar-icon">🔄</div>
-              <div class="pillar-text">
-                <strong>Distributor Claims</strong>
-                <span>Generate return debit notes before cutoff to claim 100% credit value.</span>
+                <strong>FEFO & Expiry Radar</strong>
+                <span>Automatic guidance to dispense earliest-expiring medicine batches first.</span>
               </div>
             </div>
           </div>
@@ -214,18 +201,17 @@
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
-            <span>Real data only — your dashboard starts fresh and updates with every uploaded bill</span>
+            <span>Real database as single source of truth — zero fake records</span>
           </div>
         </div>
 
       </div>
     </section>
 
-    <!-- RIGHT SIDE: ONBOARDING & LOGIN CARD -->
-    <section class="auth-section" aria-label="Sign In and Pharmacy Setup">
+    <!-- RIGHT SIDE: SIMPLIFIED LOGIN CARD (FAST & USABLE IN SECONDS) -->
+    <section class="auth-section" aria-label="Sign In">
       <div class="auth-container">
         
-        <!-- Clean Professional Onboarding & Authentication Card with 1px Gradient Border -->
         <div class="auth-card gradient-border-card">
           
           <div class="auth-header onboard-step-1">
@@ -238,13 +224,31 @@
                 <span>Welcome</span>
               </button>
             </div>
-            <p class="auth-subtitle">Sign in with your email or mobile to manage your pharmacy inventory.</p>
+            <p class="auth-subtitle">Sign in to your pharmacy workspace.</p>
+          </div>
+
+          <!-- Primary Option: Continue with Google -->
+          <button type="button" id="googleSignInBtn" class="btn-google prominent-google-btn onboard-step-2">
+            <svg class="google-icon" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+
+          <!-- Divider -->
+          <div class="auth-divider onboard-step-3" role="separator">
+            <span class="divider-line"></span>
+            <span class="divider-text">OR</span>
+            <span class="divider-line"></span>
           </div>
 
           <form id="loginForm" class="auth-form" novalidate>
             
-            <!-- Dual Email or Mobile Number Input Field -->
-            <div class="form-group onboard-step-6">
+            <!-- Email or Mobile -->
+            <div class="form-group onboard-step-4">
               <label for="loginIdentifierInput" class="form-label">Email address or Mobile number</label>
               <div class="input-wrapper">
                 <span class="input-icon" aria-hidden="true">
@@ -258,7 +262,7 @@
                   id="loginIdentifierInput" 
                   name="loginIdentifier" 
                   class="form-input" 
-                  placeholder="pharmacist@medicare.com or 9876543210" 
+                  placeholder="e.g. pharmacist@medicare.com or 9876543210" 
                   autocomplete="username" 
                   required
                 >
@@ -266,7 +270,7 @@
             </div>
 
             <!-- Password Field -->
-            <div class="form-group onboard-step-6">
+            <div class="form-group onboard-step-4">
               <div class="label-row">
                 <label for="passwordInput" class="form-label">Password</label>
               </div>
@@ -301,8 +305,8 @@
               </div>
             </div>
 
-            <!-- Options Row: Remember Me & Forgot Password -->
-            <div class="form-options-row onboard-step-6">
+            <!-- Options Row -->
+            <div class="form-options-row onboard-step-5">
               <label class="checkbox-container">
                 <input type="checkbox" id="rememberMe" name="remember">
                 <span class="custom-checkbox" aria-hidden="true">
@@ -317,46 +321,27 @@
             </div>
 
             <!-- Primary Sign In Button -->
-            <button type="submit" id="signInButton" class="btn-primary onboard-step-7">
-              <span class="btn-text">Sign In to Pharmacy Workspace</span>
+            <button type="submit" id="signInButton" class="btn-primary onboard-step-6">
+              <span class="btn-text">Sign In</span>
               <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
             </button>
 
-            <!-- Notification / Demo Feedback Alert -->
+            <!-- Real Authentication Error Alert Box -->
             <div id="authNotice" class="auth-notice" role="alert" aria-live="polite" hidden></div>
-
-            <!-- Divider -->
-            <div class="auth-divider onboard-step-7" role="separator">
-              <span class="divider-line"></span>
-              <span class="divider-text">or</span>
-              <span class="divider-line"></span>
-            </div>
-
-            <!-- Continue with Google Button -->
-            <button type="button" id="googleSignInBtn" class="btn-google onboard-step-7">
-              <svg class="google-icon" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-              </svg>
-              <span>Continue with Google</span>
-            </button>
 
             <!-- Create Account Link -->
             <div class="auth-card-footer onboard-step-7">
               <span class="footer-prompt">New to EXPIREDNOT?</span>
-              <button type="button" class="btn-inline-link" id="createAccountLink">Create an account</button>
+              <button type="button" class="btn-inline-link" id="createAccountLink">Create your pharmacy account</button>
             </div>
 
           </form>
 
         </div>
 
-        <!-- Trust & Security Badge -->
         <div class="trust-footer onboard-step-7">
           <div class="trust-item">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -376,11 +361,10 @@
   </div>
 
   <!-- ==========================================================================
-       VIEW 3: CREATE ACCOUNT / 3-STEP PHARMACY ONBOARDING FLOW
+       VIEW 3: SIMPLIFIED 3-STEP PHARMACY ONBOARDING WIZARD (UNDER 60 SECONDS)
        ========================================================================== -->
   <div id="signupScreen" class="signup-layout view-hidden" aria-label="Create Pharmacy Account">
     
-    <!-- Top Navigation Bar -->
     <header class="signup-nav-header">
       <div class="signup-nav-inner">
         <div class="signup-brand">
@@ -393,7 +377,7 @@
           </div>
           <span class="brand-wordmark">EXPIREDNOT</span>
           <span class="nav-sep-dot" aria-hidden="true">•</span>
-          <span class="nav-tagline">Pharmacy Onboarding</span>
+          <span class="nav-tagline">Pharmacy Setup</span>
         </div>
 
         <div class="signup-nav-actions">
@@ -407,60 +391,9 @@
       </div>
     </header>
 
-    <!-- Main Registration Shell -->
     <main class="signup-main-shell">
-      <div class="signup-grid-container">
+      <div class="signup-grid-container single-col-signup">
         
-        <!-- Left Reassurance Sidebar (Desktop) -->
-        <aside class="signup-sidebar" aria-label="Why EXPIREDNOT">
-          <div class="sidebar-sticky-card gradient-border-subtle">
-            <div class="sidebar-header">
-              <div class="sidebar-icon-badge" aria-hidden="true">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                </svg>
-              </div>
-              <h2 class="sidebar-title">One pharmacy. One clear view.</h2>
-              <p class="sidebar-subtitle">Keep your medicine inventory organized and stay ahead of expiry.</p>
-            </div>
-
-            <div class="sidebar-features-list">
-              <div class="sidebar-feature-item">
-                <div class="feature-bullet green" aria-hidden="true"></div>
-                <div>
-                  <strong>Batch & Expiry Intelligence</strong>
-                  <p>Automated reminders 90, 60, and 30 days before batch lapse.</p>
-                </div>
-              </div>
-
-              <div class="sidebar-feature-item">
-                <div class="feature-bullet teal" aria-hidden="true"></div>
-                <div>
-                  <strong>Dual Sign-In Access</strong>
-                  <p>Log in securely with your mobile number or email address.</p>
-                </div>
-              </div>
-
-              <div class="sidebar-feature-item">
-                <div class="feature-bullet amber" aria-hidden="true"></div>
-                <div>
-                  <strong>100% Confidential Data</strong>
-                  <p>Your Drug Licence No. and stock values are protected & private.</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="sidebar-security-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              <span>Designed for Retail, Wholesale & Hospital Pharmacies</span>
-            </div>
-          </div>
-        </aside>
-
-        <!-- Right Registration Form Card -->
         <section class="signup-wizard-section" aria-label="Registration Steps">
           <div class="signup-wizard-card gradient-border-card">
             
@@ -489,42 +422,22 @@
 
               </div>
 
-              <!-- Animated Linear Progress Line -->
               <div class="progress-track" aria-hidden="true">
                 <div class="progress-bar-fill" id="progressBarFill" style="width: 33.33%;"></div>
               </div>
             </div>
 
-            <!-- Quick Google Onboarding Option on Step 1 -->
-            <div class="google-onboard-bar" id="regGoogleOnboardBar">
-              <button type="button" class="btn-google" id="regGoogleBtn">
-                <svg class="google-icon" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                </svg>
-                <span>Continue with Google to fast-fill profile</span>
-              </button>
-              <div class="auth-divider">
-                <span class="divider-line"></span>
-                <span class="divider-text">or enter manually</span>
-                <span class="divider-line"></span>
-              </div>
-            </div>
-
             <!-- ==========================================================
-                 WIZARD STEP 1: PHARMACY DETAILS
+                 STEP 1: PHARMACY (SIMPLE & ESSENTIAL ONLY)
                  ========================================================== -->
             <div class="wizard-step-pane step-active" id="regStep1Pane">
               <div class="step-header">
                 <h3 class="step-heading">Tell us about your pharmacy</h3>
-                <p class="step-subtext">Let's create your pharmacy profile first.</p>
+                <p class="step-subtext">Just a few details to set up your pharmacy workspace.</p>
               </div>
 
               <form id="step1Form" class="step-form" novalidate>
                 
-                <!-- Chemist / Pharmacy Shop Name -->
                 <div class="form-group">
                   <label for="regShopName" class="form-label">
                     Chemist / Pharmacy Shop Name <span class="required-mark">*</span>
@@ -541,26 +454,23 @@
                       id="regShopName" 
                       name="regShopName" 
                       class="form-input" 
-                      placeholder="Enter your pharmacy or chemist shop name" 
+                      placeholder="Enter your shop name" 
                       autocomplete="organization" 
                       required
                     >
                   </div>
-                  <span class="field-error-msg" id="errRegShopName" hidden>Please enter your pharmacy name.</span>
+                  <span class="field-error-msg" id="errRegShopName" hidden>Please enter your shop name.</span>
                 </div>
 
-                <!-- Drug Licence No. (D.L. No.) -->
                 <div class="form-group">
                   <label for="regDlNumber" class="form-label">
-                    Drug Licence No. (D.L. No.) <span class="required-mark">*</span>
+                    Drug Licence No. <span class="required-mark">*</span>
                   </label>
                   <div class="input-wrapper">
                     <span class="input-icon" aria-hidden="true">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
                       </svg>
                     </span>
                     <input 
@@ -568,18 +478,16 @@
                       id="regDlNumber" 
                       name="regDlNumber" 
                       class="form-input mono-input" 
-                      placeholder="Enter your drug licence number" 
+                      placeholder="Enter your D.L. number" 
                       autocomplete="off" 
                       required
                     >
                   </div>
-                  <span class="field-helper-text">Your licence number helps identify your pharmacy profile.</span>
-                  <span class="field-error-msg" id="errRegDlNumber" hidden>Please enter your Drug Licence Number.</span>
+                  <span class="field-helper-text">Used to identify your pharmacy profile.</span>
+                  <span class="field-error-msg" id="errRegDlNumber" hidden>Please enter your D.L. number.</span>
                 </div>
 
-                <!-- Pharmacy Type & Contact Row -->
                 <div class="form-row-2col">
-                  <!-- Pharmacy Type -->
                   <div class="form-group">
                     <label for="regPharmacyType" class="form-label">
                       Pharmacy Type <span class="required-mark">*</span>
@@ -597,10 +505,9 @@
                     <span class="field-error-msg" id="errRegPharmacyType" hidden>Please select pharmacy type.</span>
                   </div>
 
-                  <!-- Pharmacy Contact Number -->
                   <div class="form-group">
                     <label for="regPharmacyPhone" class="form-label">
-                      Pharmacy Contact Number <span class="required-mark">*</span>
+                      Pharmacy Mobile Number <span class="required-mark">*</span>
                     </label>
                     <div class="phone-input-group">
                       <span class="country-prefix">+91</span>
@@ -609,132 +516,22 @@
                         id="regPharmacyPhone" 
                         name="regPharmacyPhone" 
                         class="form-input phone-field" 
-                        placeholder="e.g. 9876543210" 
+                        placeholder="Enter pharmacy contact number" 
                         maxlength="10"
                         autocomplete="tel" 
                         required
                       >
                     </div>
-                    <span class="field-error-msg" id="errRegPharmacyPhone" hidden>Please enter a valid 10-digit contact number.</span>
+                    <span class="field-error-msg" id="errRegPharmacyPhone" hidden>Please enter a valid 10-digit mobile number.</span>
                   </div>
                 </div>
 
-                <!-- Pharmacy Email (Optional) -->
-                <div class="form-group">
-                  <label for="regPharmacyEmail" class="form-label">
-                    Pharmacy Email <span class="optional-tag">(Optional)</span>
-                  </label>
-                  <div class="input-wrapper">
-                    <span class="input-icon" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                      </svg>
-                    </span>
-                    <input 
-                      type="email" 
-                      id="regPharmacyEmail" 
-                      name="regPharmacyEmail" 
-                      class="form-input" 
-                      placeholder="pharmacy.store@chemists.com" 
-                      autocomplete="email"
-                    >
-                  </div>
-                  <span class="field-helper-text">Optional if owner uses a personal email for login.</span>
-                </div>
-
-                <!-- Expandable Accordion 1: Pharmacy Address -->
-                <div class="accordion-box">
-                  <button type="button" class="accordion-toggle" id="toggleAddressBtn" aria-expanded="false">
-                    <span class="accordion-title-row">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      <span>Pharmacy Address</span>
-                      <span class="optional-tag">(Optional)</span>
-                    </span>
-                    <span class="accordion-chevron" aria-hidden="true">+</span>
-                  </button>
-
-                  <div class="accordion-content" id="addressContent" hidden>
-                    <div class="accordion-inner-form">
-                      <div class="form-group">
-                        <label for="regAddressLine" class="form-label">Address Line</label>
-                        <input type="text" id="regAddressLine" class="form-input" placeholder="Shop No., Street, Market / Complex">
-                      </div>
-
-                      <div class="form-row-3col">
-                        <div class="form-group">
-                          <label for="regCity" class="form-label">City</label>
-                          <input type="text" id="regCity" class="form-input" placeholder="City / District">
-                        </div>
-
-                        <div class="form-group">
-                          <label for="regState" class="form-label">State</label>
-                          <input type="text" id="regState" class="form-input" placeholder="State">
-                        </div>
-
-                        <div class="form-group">
-                          <label for="regPinCode" class="form-label">PIN Code</label>
-                          <input type="text" id="regPinCode" class="form-input mono-input" maxlength="6" placeholder="e.g. 110001">
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Expandable Accordion 2: Additional Business Information -->
-                <div class="accordion-box">
-                  <button type="button" class="accordion-toggle" id="toggleBusinessBtn" aria-expanded="false">
-                    <span class="accordion-title-row">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                        <line x1="8" y1="21" x2="16" y2="21"></line>
-                        <line x1="12" y1="17" x2="12" y2="21"></line>
-                      </svg>
-                      <span>Additional Business Information</span>
-                      <span class="optional-tag">(Optional)</span>
-                    </span>
-                    <span class="accordion-chevron" aria-hidden="true">+</span>
-                  </button>
-
-                  <div class="accordion-content" id="businessContent" hidden>
-                    <div class="accordion-inner-form">
-                      <div class="form-row-2col">
-                        <div class="form-group">
-                          <label for="regGstin" class="form-label">GSTIN</label>
-                          <input type="text" id="regGstin" class="form-input mono-input" placeholder="e.g. 07AAAAA0000A1Z5" maxlength="15">
-                        </div>
-
-                        <div class="form-group">
-                          <label for="regPharmacyRegNo" class="form-label">Pharmacy Reg. No.</label>
-                          <input type="text" id="regPharmacyRegNo" class="form-input mono-input" placeholder="State Council Reg. No.">
-                        </div>
-                      </div>
-
-                      <div class="form-group">
-                        <label for="regAltPhone" class="form-label">Alternate Contact Number</label>
-                        <div class="phone-input-group">
-                          <span class="country-prefix">+91</span>
-                          <input type="tel" id="regAltPhone" class="form-input phone-field" placeholder="Alternate phone" maxlength="10">
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Step 1 Actions -->
                 <div class="wizard-actions-row">
                   <button type="button" class="btn-secondary" id="step1BackBtn">
-                    <span>Back to Sign In</span>
+                    <span>Cancel</span>
                   </button>
                   <button type="submit" class="btn-primary" id="step1NextBtn">
-                    <span>Continue to Owner Details</span>
-                    <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                      <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
+                    <span>Continue →</span>
                   </button>
                 </div>
 
@@ -742,17 +539,16 @@
             </div>
 
             <!-- ==========================================================
-                 WIZARD STEP 2: OWNER / RESPONSIBLE PERSON
+                 STEP 2: OWNER (RESPONSIBLE PERSON)
                  ========================================================== -->
             <div class="wizard-step-pane step-hidden" id="regStep2Pane">
               <div class="step-header">
                 <h3 class="step-heading">Who manages this pharmacy?</h3>
-                <p class="step-subtext">Add the details of the person responsible for this pharmacy account.</p>
+                <p class="step-subtext">Tell us who will manage the EXPIREDNOT account.</p>
               </div>
 
               <form id="step2Form" class="step-form" novalidate>
                 
-                <!-- Owner / Pharmacist Name -->
                 <div class="form-group">
                   <label for="regOwnerName" class="form-label">
                     Owner / Pharmacist Name <span class="required-mark">*</span>
@@ -777,27 +573,23 @@
                   <span class="field-error-msg" id="errRegOwnerName" hidden>Please enter your full name.</span>
                 </div>
 
-                <!-- Professional Role -->
-                <div class="form-group">
-                  <label for="regOwnerRole" class="form-label">
-                    Professional Role <span class="required-mark">*</span>
-                  </label>
-                  <div class="input-wrapper select-wrapper">
-                    <select id="regOwnerRole" name="regOwnerRole" class="form-input select-input" required>
-                      <option value="" disabled selected>Select professional role</option>
-                      <option value="Pharmacy Owner">Pharmacy Owner</option>
-                      <option value="Pharmacist">Pharmacist</option>
-                      <option value="Store Manager">Store Manager</option>
-                      <option value="Inventory Manager">Inventory Manager</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <span class="field-error-msg" id="errRegOwnerRole" hidden>Please select your professional role.</span>
-                </div>
-
-                <!-- Dual Identifier Row: Mobile & Email -->
                 <div class="form-row-2col">
-                  <!-- Mobile Number (+91) -->
+                  <div class="form-group">
+                    <label for="regOwnerRole" class="form-label">
+                      Role <span class="required-mark">*</span>
+                    </label>
+                    <div class="input-wrapper select-wrapper">
+                      <select id="regOwnerRole" name="regOwnerRole" class="form-input select-input" required>
+                        <option value="" disabled selected>Select role</option>
+                        <option value="Owner">Owner</option>
+                        <option value="Pharmacist">Pharmacist</option>
+                        <option value="Store Manager">Store Manager</option>
+                        <option value="Inventory Manager">Inventory Manager</option>
+                      </select>
+                    </div>
+                    <span class="field-error-msg" id="errRegOwnerRole" hidden>Please select role.</span>
+                  </div>
+
                   <div class="form-group">
                     <label for="regOwnerMobile" class="form-label">
                       Mobile Number <span class="required-mark">*</span>
@@ -809,62 +601,22 @@
                         id="regOwnerMobile" 
                         name="regOwnerMobile" 
                         class="form-input phone-field" 
-                        placeholder="e.g. 9876543210" 
+                        placeholder="Enter mobile number" 
                         maxlength="10" 
                         autocomplete="tel" 
                         required
                       >
                     </div>
-                    <span class="field-helper-text">Primary login & OTP recovery number.</span>
                     <span class="field-error-msg" id="errRegOwnerMobile" hidden>Please enter a valid 10-digit mobile number.</span>
                   </div>
-
-                  <!-- Email Address -->
-                  <div class="form-group">
-                    <label for="regOwnerEmail" class="form-label">
-                      Email Address <span class="required-mark">*</span>
-                    </label>
-                    <div class="input-wrapper">
-                      <span class="input-icon" aria-hidden="true">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                          <polyline points="22,6 12,13 2,6"></polyline>
-                        </svg>
-                      </span>
-                      <input 
-                        type="email" 
-                        id="regOwnerEmail" 
-                        name="regOwnerEmail" 
-                        class="form-input" 
-                        placeholder="Enter email address" 
-                        autocomplete="email" 
-                        required
-                      >
-                    </div>
-                    <span class="field-helper-text">Primary login & report email.</span>
-                    <span class="field-error-msg" id="errRegOwnerEmail" hidden>Please enter a valid email address.</span>
-                  </div>
                 </div>
 
-                <!-- Dual Login Info Badge -->
-                <div class="dual-auth-badge">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                  <span>You will be able to log in with <strong>both</strong> this Mobile Number and Email Address.</span>
-                </div>
-
-                <!-- Step 2 Actions -->
                 <div class="wizard-actions-row">
                   <button type="button" class="btn-secondary" id="step2BackBtn">
                     <span>Back</span>
                   </button>
                   <button type="submit" class="btn-primary" id="step2NextBtn">
-                    <span>Continue to Account Setup</span>
-                    <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                      <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
+                    <span>Continue →</span>
                   </button>
                 </div>
 
@@ -872,44 +624,28 @@
             </div>
 
             <!-- ==========================================================
-                 WIZARD STEP 3: ACCOUNT SETUP & SECURITY
+                 STEP 3: ACCOUNT & SECURITY
                  ========================================================== -->
             <div class="wizard-step-pane step-hidden" id="regStep3Pane">
               <div class="step-header">
-                <h3 class="step-heading">Secure your EXPIREDNOT account</h3>
-                <p class="step-subtext">Create your login credentials to securely access your pharmacy inventory.</p>
+                <h3 class="step-heading">Secure your account</h3>
+                <p class="step-subtext" id="regStep3Subtext">Create your credentials to access your pharmacy inventory.</p>
               </div>
 
-              <!-- Linked Sign-In Identifiers Preview -->
-              <div class="linked-identifiers-box">
-                <div class="linked-title-row">
-                  <span class="linked-title">Linked Sign-In Identifiers:</span>
-                  <span class="verified-pill">Dual-Access Enabled</span>
-                </div>
-                <div class="linked-pills-row">
-                  <div class="id-pill">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                      <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                    </svg>
-                    <span id="linkedMobileDisplay">+91 —</span>
-                  </div>
-                  <div class="id-pill">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                      <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                    <span id="linkedEmailDisplay">—</span>
-                  </div>
-                </div>
+              <!-- Google Connected Notice (if coming via Google) -->
+              <div class="google-connected-pill" id="googleConnectedPill" hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>Google account connected: <strong id="googleEmailConnectedDisplay">user@gmail.com</strong></span>
               </div>
 
               <form id="step3Form" class="step-form" novalidate>
                 
-                <!-- Email field (Editable prefill) -->
-                <div class="form-group">
+                <div class="form-group" id="regEmailGroup">
                   <label for="regAccountEmail" class="form-label">
-                    Login Email Address <span class="required-mark">*</span>
+                    Email Address <span class="required-mark">*</span>
                   </label>
                   <div class="input-wrapper">
                     <span class="input-icon" aria-hidden="true">
@@ -923,7 +659,7 @@
                       id="regAccountEmail" 
                       name="regAccountEmail" 
                       class="form-input" 
-                      placeholder="name@pharmacy.com" 
+                      placeholder="Enter your email" 
                       autocomplete="email" 
                       required
                     >
@@ -931,10 +667,9 @@
                   <span class="field-error-msg" id="errRegAccountEmail" hidden>Please enter a valid email address.</span>
                 </div>
 
-                <!-- Create Password -->
-                <div class="form-group">
+                <div class="form-group" id="regPasswordGroup">
                   <label for="regPassword" class="form-label">
-                    Create Password <span class="required-mark">*</span>
+                    Password <span class="required-mark">*</span>
                   </label>
                   <div class="input-wrapper">
                     <span class="input-icon" aria-hidden="true">
@@ -948,38 +683,23 @@
                       id="regPassword" 
                       name="regPassword" 
                       class="form-input password-input" 
-                      placeholder="Create a strong password" 
+                      placeholder="Create a password (8+ characters)" 
                       autocomplete="new-password" 
                       required
                     >
-                    <button type="button" class="toggle-password-btn" id="toggleRegPasswordBtn" aria-label="Toggle password visibility">
-                      <svg class="regEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                      </svg>
-                    </button>
                   </div>
 
-                  <!-- Password Strength Meter -->
+                  <!-- Strength Bar -->
                   <div class="strength-meter-container">
                     <div class="strength-bar-track">
                       <div class="strength-bar-fill" id="strengthBarFill"></div>
                     </div>
-                    <span class="strength-label-text" id="strengthLabelText">Password strength: —</span>
+                    <span class="strength-label-text" id="strengthLabelText">Strength: 8+ characters</span>
                   </div>
-
-                  <!-- Requirements Checklist -->
-                  <div class="password-checklist">
-                    <div class="req-item" id="reqLen"><span>•</span> At least 8 characters</div>
-                    <div class="req-item" id="reqUpper"><span>•</span> At least one uppercase letter</div>
-                    <div class="req-item" id="reqNum"><span>•</span> At least one number</div>
-                    <div class="req-item" id="reqSpecial"><span>•</span> At least one special character</div>
-                  </div>
-                  <span class="field-error-msg" id="errRegPassword" hidden>Please create a password that meets all requirements.</span>
+                  <span class="field-error-msg" id="errRegPassword" hidden>Password must be at least 8 characters.</span>
                 </div>
 
-                <!-- Confirm Password -->
-                <div class="form-group">
+                <div class="form-group" id="regConfirmPasswordGroup">
                   <label for="regConfirmPassword" class="form-label">
                     Confirm Password <span class="required-mark">*</span>
                   </label>
@@ -995,31 +715,20 @@
                       id="regConfirmPassword" 
                       name="regConfirmPassword" 
                       class="form-input password-input" 
-                      placeholder="Re-enter your password" 
+                      placeholder="Confirm your password" 
                       autocomplete="new-password" 
                       required
                     >
-                    <button type="button" class="toggle-password-btn" id="toggleRegConfirmPasswordBtn" aria-label="Toggle password visibility">
-                      <svg class="regConfirmEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                      </svg>
-                    </button>
                   </div>
                   <span class="field-error-msg" id="errRegConfirmPassword" hidden>Passwords do not match.</span>
                 </div>
 
-                <!-- Step 3 Actions -->
                 <div class="wizard-actions-row">
                   <button type="button" class="btn-secondary" id="step3BackBtn">
                     <span>Back</span>
                   </button>
-                  <button type="submit" class="btn-primary" id="step3NextBtn">
-                    <span>Review Pharmacy Profile</span>
-                    <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                      <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
+                  <button type="submit" class="btn-primary" id="step3SubmitBtn">
+                    <span>Create My Pharmacy Account →</span>
                   </button>
                 </div>
 
@@ -1027,131 +736,11 @@
             </div>
 
             <!-- ==========================================================
-                 WIZARD STEP 4: REVIEW PROFILE STEP
-                 ========================================================== -->
-            <div class="wizard-step-pane step-hidden" id="regStepReviewPane">
-              <div class="step-header">
-                <h3 class="step-heading">Review your pharmacy profile</h3>
-                <p class="step-subtext">Please check your details before creating your account.</p>
-              </div>
-
-              <div class="review-cards-list">
-                
-                <!-- Review Card: Pharmacy Details -->
-                <div class="review-card">
-                  <div class="review-card-header">
-                    <div class="review-header-title">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-                      </svg>
-                      <span>Pharmacy Profile</span>
-                    </div>
-                    <button type="button" class="btn-edit-section" id="editStep1Btn">Edit</button>
-                  </div>
-                  <div class="review-grid">
-                    <div class="review-item">
-                      <span class="r-label">Shop Name:</span>
-                      <span class="r-val" id="revShopName">—</span>
-                    </div>
-                    <div class="review-item">
-                      <span class="r-label">D.L. No.:</span>
-                      <span class="r-val mono" id="revDlNumber">—</span>
-                    </div>
-                    <div class="review-item">
-                      <span class="r-label">Type:</span>
-                      <span class="r-val" id="revPharmacyType">—</span>
-                    </div>
-                    <div class="review-item">
-                      <span class="r-label">Contact:</span>
-                      <span class="r-val" id="revPharmacyPhone">—</span>
-                    </div>
-                    <div class="review-item full-width" id="revAddressRow" hidden>
-                      <span class="r-label">Address:</span>
-                      <span class="r-val" id="revAddress">—</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Review Card: Responsible Person & Dual Login -->
-                <div class="review-card">
-                  <div class="review-card-header">
-                    <div class="review-header-title">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                      </svg>
-                      <span>Responsible Person & Login Identifiers</span>
-                    </div>
-                    <button type="button" class="btn-edit-section" id="editStep2Btn">Edit</button>
-                  </div>
-                  <div class="review-grid">
-                    <div class="review-item">
-                      <span class="r-label">Name:</span>
-                      <span class="r-val" id="revOwnerName">—</span>
-                    </div>
-                    <div class="review-item">
-                      <span class="r-label">Role:</span>
-                      <span class="r-val" id="revOwnerRole">—</span>
-                    </div>
-                    <div class="review-item">
-                      <span class="r-label">Login Mobile:</span>
-                      <span class="r-val" id="revOwnerMobile">—</span>
-                    </div>
-                    <div class="review-item">
-                      <span class="r-label">Login Email:</span>
-                      <span class="r-val" id="revAccountEmail">—</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Privacy & Data Protection Notice -->
-                <div class="review-privacy-note">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                  <span>Your pharmacy information is used to identify your account and manage your inventory. We never expose your licence or stock data publicly.</span>
-                </div>
-
-              </div>
-
-              <!-- Confirmation Checkbox -->
-              <div class="confirmation-group">
-                <label class="checkbox-container">
-                  <input type="checkbox" id="confirmAccuracyCheckbox">
-                  <span class="custom-checkbox" aria-hidden="true">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  </span>
-                  <span class="checkbox-label-text">I confirm that the information provided is accurate.</span>
-                </label>
-                <span class="field-error-msg" id="errConfirmAccuracy" hidden>Please check the box to confirm before proceeding.</span>
-              </div>
-
-              <!-- Final Create Account CTA -->
-              <div class="wizard-actions-row">
-                <button type="button" class="btn-secondary" id="stepReviewBackBtn">
-                  <span>Back</span>
-                </button>
-                <button type="button" class="btn-primary" id="finalCreateAccountBtn">
-                  <span>Create My Account</span>
-                  <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
-                </button>
-              </div>
-
-            </div>
-
-            <!-- ==========================================================
-                 WIZARD STEP 5: SUCCESS SCREEN
+                 STEP 4: SIGNUP SUCCESS
                  ========================================================== -->
             <div class="wizard-step-pane step-hidden" id="regStepSuccessPane">
               <div class="success-screen-container">
                 
-                <!-- Success Checkmark Animation -->
                 <div class="success-icon-badge">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -1159,22 +748,13 @@
                 </div>
 
                 <div class="success-content">
-                  <h3 class="success-heading">Welcome to EXPIREDNOT</h3>
-                  <p class="success-subtext">Your pharmacy profile is ready. Let's start organizing your inventory.</p>
-                </div>
-
-                <!-- Verified Pharmacy Pill -->
-                <div class="success-profile-card">
-                  <div class="success-shop-title" id="successShopNameDisplay">Medicare Pharmacy</div>
-                  <div class="success-shop-meta" id="successMetaDisplay">D.L. No: DL-20B/94812 • Dual Sign-In Active</div>
+                  <h3 class="success-heading">You're all set.</h3>
+                  <p class="success-pharmacy-welcome" id="successWelcomeShopTitle">Welcome to EXPIREDNOT, Apollo Chemist</p>
+                  <p class="success-subtext">Your pharmacy workspace is ready. Let's start organizing your inventory.</p>
                 </div>
 
                 <button type="button" class="btn-primary btn-dashboard" id="goToDashboardBtn">
-                  <span>Open Pharmacy Workspace</span>
-                  <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
+                  <span>Go to My Dashboard →</span>
                 </button>
 
               </div>
@@ -1189,46 +769,44 @@
   </div>
 
   <!-- ==========================================================================
-       VIEW 4: MAIN APPLICATION WORKSPACE & DASHBOARD
+       VIEW 4: REDESIGNED PRODUCTION WORKSPACE WITH VERTICAL LEFT SIDEBAR
        ========================================================================== -->
   <div id="dashboardScreen" class="dashboard-layout view-hidden" aria-label="EXPIREDNOT Pharmacy Workspace">
     
-    <!-- Presentation Demo Mode Alert Banner (Hidden by default, only shown when explicitly loaded) -->
+    <!-- Presentation Demo Mode Banner -->
     <div id="demoModeBanner" class="demo-mode-banner" hidden>
       <div class="demo-banner-content">
         <span class="demo-badge">🟡 PRESENTATION DEMO MODE</span>
-        <span class="demo-text">Viewing temporary sample presentation data. Real account records are safely preserved.</span>
+        <span class="demo-text">Viewing presentation sample data. Real account records remain strictly separate.</span>
       </div>
       <button type="button" id="exitDemoModeBtn" class="btn-exit-demo">Exit Demo Mode</button>
     </div>
 
-    <!-- Workspace Top Header -->
+    <!-- Workspace Top Header Bar -->
     <header class="app-topbar">
       <div class="topbar-inner">
         
-        <!-- Left: Brand & Pharmacy Profile Pill -->
+        <!-- Left: Mobile Hamburger & Active Pharmacy Pill -->
         <div class="topbar-left">
-          <div class="topbar-brand">
-            <div class="brand-symbol-small" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="32" height="32" rx="8" fill="#047857"/>
-                <path d="M16 8V24M8 16H24" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
-                <circle cx="23.5" cy="8.5" r="3.5" fill="#10B981" stroke="#047857" stroke-width="1.5"/>
-              </svg>
-            </div>
+          <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle Navigation Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
+          <div class="topbar-brand desktop-hidden">
             <span class="brand-wordmark">EXPIREDNOT</span>
           </div>
 
-          <div class="topbar-divider" aria-hidden="true"></div>
-
-          <!-- Active Pharmacy Info Card -->
           <div class="active-pharmacy-pill">
             <span class="pharmacy-name-title" id="activeShopName">My Pharmacy</span>
             <span class="pharmacy-dl-badge" id="activeDlNumber">D.L. No. —</span>
           </div>
         </div>
 
-        <!-- Right: Action Buttons & Pharmacist Profile -->
+        <!-- Right: Actions & User Menu -->
         <div class="topbar-right">
           
           <button type="button" class="btn-topbar-action btn-upload-topbar" id="topbarUploadBillBtn">
@@ -1237,7 +815,7 @@
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
-            <span>Upload Bill</span>
+            <span>+ Upload Bill</span>
           </button>
 
           <button type="button" class="btn-topbar-action btn-add-med-topbar" id="topbarAddMedBtn">
@@ -1245,12 +823,12 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>Add Medicine</span>
+            <span>+ Add Medicine</span>
           </button>
 
           <!-- Notification Bell -->
           <div class="notification-wrapper">
-            <button type="button" class="topbar-icon-btn" id="notifBellBtn" title="Expiry Alerts & Notifications" aria-label="Notifications">
+            <button type="button" class="topbar-icon-btn" id="notifBellBtn" title="Real Event Notifications" aria-label="Notifications">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -1259,11 +837,11 @@
             </button>
           </div>
 
-          <!-- User Menu / Logout -->
+          <!-- User Menu & Sign Out -->
           <div class="user-menu-box">
             <div class="user-avatar-circle" id="userAvatarInitials">PH</div>
             <button type="button" class="btn-logout" id="logoutBtn" title="Sign out of pharmacy">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                 <polyline points="16 17 21 12 16 7"></polyline>
                 <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -1275,484 +853,831 @@
         </div>
 
       </div>
-
-      <!-- Navigation Tabs Bar -->
-      <nav class="app-nav-tabs" aria-label="Workspace Navigation">
-        <div class="tabs-inner">
-          <button type="button" class="nav-tab-item tab-active" data-tab="dashboard">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            <span>Dashboard</span>
-          </button>
-
-          <button type="button" class="nav-tab-item" data-tab="bills">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-            </svg>
-            <span>Purchase Bills & OCR</span>
-            <span class="tab-pill" id="tabBillsCount" hidden>0</span>
-          </button>
-
-          <button type="button" class="nav-tab-item" data-tab="inventory">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-            <span>Live Inventory</span>
-            <span class="tab-pill" id="tabInventoryCount" hidden>0</span>
-          </button>
-
-          <button type="button" class="nav-tab-item" data-tab="returns">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="1 4 1 10 7 10"></polyline>
-              <polyline points="23 20 23 14 17 14"></polyline>
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-            </svg>
-            <span>Distributor Returns</span>
-          </button>
-
-          <button type="button" class="nav-tab-item" data-tab="settings">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-            <span>Settings</span>
-          </button>
-        </div>
-      </nav>
     </header>
 
-    <!-- Workspace Body Area -->
-    <main class="dashboard-body-container">
+    <!-- Workspace Body Layout: Vertical Sidebar + Main Content Area -->
+    <div class="workspace-main-wrapper">
       
-      <!-- ====================================================================
-           TAB 1: EXPIRY INTELLIGENCE DASHBOARD
-           ==================================================================== -->
-      <section class="tab-pane tab-pane-active" id="paneDashboard" aria-label="Dashboard Overview">
+      <!-- Backdrop for Mobile Sidebar Drawer -->
+      <div class="sidebar-drawer-backdrop" id="sidebarBackdrop"></div>
+
+      <!-- VERTICAL LEFT SIDEBAR -->
+      <aside class="app-vertical-sidebar" id="appSidebar" aria-label="Application Navigation">
         
-        <!-- REAL DYNAMIC KPI METRICS ROW (Strictly calculated from database) -->
-        <div class="kpi-grid">
-          
-          <!-- Card 1: Total Real Inventory Value -->
-          <div class="kpi-card gradient-border-subtle">
-            <div class="kpi-card-header">
-              <span class="kpi-label">Inventory Value</span>
-              <span class="kpi-icon-pill green">₹</span>
-            </div>
-            <div class="kpi-metric-main" id="kpiTotalValue">₹0</div>
-            <div class="kpi-subtext" id="kpiTotalCount">0 medicines • 0 batches</div>
+        <!-- Sidebar Brand Header -->
+        <div class="sidebar-brand-box">
+          <div class="brand-symbol-small" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="32" height="32" rx="8" fill="#047857"/>
+              <path d="M16 8V24M8 16H24" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
+              <circle cx="23.5" cy="8.5" r="3.5" fill="#10B981" stroke="#047857" stroke-width="1.5"/>
+            </svg>
           </div>
-
-          <!-- Card 2: Critical Expiry Risk (<= 30 Days) -->
-          <div class="kpi-card gradient-border-subtle">
-            <div class="kpi-card-header">
-              <span class="kpi-label">Critical (< 30 Days)</span>
-              <span class="kpi-icon-pill red">
-                <span class="kpi-dot red"></span>
-              </span>
-            </div>
-            <div class="kpi-metric-main text-critical" id="kpiCriticalValue">₹0</div>
-            <div class="kpi-subtext" id="kpiCriticalCount">0 batches need immediate action</div>
-          </div>
-
-          <!-- Card 3: Warning Expiry (31-60 Days) -->
-          <div class="kpi-card gradient-border-subtle">
-            <div class="kpi-card-header">
-              <span class="kpi-label">Warning (31–60 Days)</span>
-              <span class="kpi-icon-pill amber">
-                <span class="kpi-dot amber"></span>
-              </span>
-            </div>
-            <div class="kpi-metric-main text-warning" id="kpiWarningValue">₹0</div>
-            <div class="kpi-subtext" id="kpiWarningCount">0 batches approaching return cutoff</div>
-          </div>
-
-          <!-- Card 4: Watchlist (61-90 Days) -->
-          <div class="kpi-card gradient-border-subtle">
-            <div class="kpi-card-header">
-              <span class="kpi-label">Watchlist (61–90 Days)</span>
-              <span class="kpi-icon-pill blue">
-                <span class="kpi-dot blue"></span>
-              </span>
-            </div>
-            <div class="kpi-metric-main text-watchlist" id="kpiWatchlistValue">₹0</div>
-            <div class="kpi-subtext" id="kpiWatchlistCount">0 batches on radar</div>
-          </div>
-
-        </div>
-
-        <!-- HERO EMPTY ONBOARDING BANNER (Displayed when real inventory count is 0) -->
-        <div class="empty-inventory-banner gradient-border-card" id="emptyInventoryBanner">
-          <div class="empty-banner-inner">
-            <div class="empty-icon-circle">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-              </svg>
-            </div>
-            <div class="empty-banner-content">
-              <h3 class="empty-heading">Your inventory is waiting to be organized.</h3>
-              <p class="empty-subtext">Upload your first purchase bill and EXPIREDNOT will turn it into a structured medicine inventory with automated batch and expiry tracking.</p>
-            </div>
-            <div class="empty-banner-actions">
-              <button type="button" class="btn-primary" id="emptyUploadBtn">
-                <span>Upload Your First Bill</span>
-                <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-              </button>
-              <button type="button" class="btn-secondary" id="emptyAddMedBtn">
-                <span>+ Add Medicine Manually</span>
-              </button>
-            </div>
+          <div class="sidebar-brand-text">
+            <span class="brand-wordmark">EXPIREDNOT</span>
+            <span class="sidebar-pharmacy-label">Workspace</span>
           </div>
         </div>
 
-        <!-- POPULATED INVENTORY AT-RISK SECTION (Shown only when real items exist) -->
-        <div class="dashboard-main-grid" id="populatedDashboardGrid" hidden>
+        <!-- Sidebar Navigation Groups -->
+        <nav class="sidebar-nav-list" aria-label="Workspace Sections">
           
-          <!-- Left: Urgent Expiry Action Queue -->
-          <div class="dash-card gradient-border-card">
-            <div class="dash-card-header">
-              <div class="dash-header-title">
-                <span class="pulse-indicator"></span>
-                <h3>Urgent Batch Expiry Action Queue</h3>
+          <!-- SECTION 1: OVERVIEW -->
+          <div class="sidebar-group-title">OVERVIEW</div>
+          <button type="button" class="sidebar-nav-btn nav-active" data-tab="dashboard">
+            <span class="sidebar-icon">📊</span>
+            <span class="sidebar-label">Dashboard</span>
+          </button>
+
+          <!-- SECTION 2: INVENTORY & BILLS -->
+          <div class="sidebar-group-title">INVENTORY</div>
+          
+          <!-- Dedicated Prominently Highlighted Upload Bills Item -->
+          <button type="button" class="sidebar-nav-btn sidebar-prominent-btn" data-tab="bills">
+            <span class="sidebar-icon">📄</span>
+            <span class="sidebar-label">Upload Bills</span>
+            <span class="sidebar-badge-highlight">AI Ingestion</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="inventory">
+            <span class="sidebar-icon">📦</span>
+            <span class="sidebar-label">Medicine Inventory</span>
+            <span class="sidebar-count-pill" id="sideCountInventory" hidden>0</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="batches">
+            <span class="sidebar-icon">🏷️</span>
+            <span class="sidebar-label">Batches</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="lowstock">
+            <span class="sidebar-icon">⚠️</span>
+            <span class="sidebar-label">Low Stock Alert</span>
+            <span class="sidebar-count-pill warning" id="sideCountLowStock" hidden>0</span>
+          </button>
+
+          <!-- SECTION 3: EXPIRY & WASTE -->
+          <div class="sidebar-group-title">EXPIRY & WASTE</div>
+          
+          <button type="button" class="sidebar-nav-btn" data-tab="expiry">
+            <span class="sidebar-icon">⏱️</span>
+            <span class="sidebar-label">Expiry Tracker & FEFO</span>
+            <span class="sidebar-count-pill critical" id="sideCountExpiry" hidden>0</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="returns">
+            <span class="sidebar-icon">🔄</span>
+            <span class="sidebar-label">Stock Clearance & Returns</span>
+          </button>
+
+          <!-- SECTION 4: BUSINESS -->
+          <div class="sidebar-group-title">BUSINESS</div>
+          
+          <button type="button" class="sidebar-nav-btn" data-tab="movement">
+            <span class="sidebar-icon">📈</span>
+            <span class="sidebar-label">Sales & Movement</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="suppliers">
+            <span class="sidebar-icon">🏢</span>
+            <span class="sidebar-label">Suppliers & Stockists</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="expenses">
+            <span class="sidebar-icon">💰</span>
+            <span class="sidebar-label">Expenses</span>
+          </button>
+
+          <!-- SECTION 5: INSIGHTS & SYSTEM -->
+          <div class="sidebar-group-title">INSIGHTS & SYSTEM</div>
+          
+          <button type="button" class="sidebar-nav-btn" data-tab="analytics">
+            <span class="sidebar-icon">📊</span>
+            <span class="sidebar-label">Analytics & Insights</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="notifications">
+            <span class="sidebar-icon">🔔</span>
+            <span class="sidebar-label">Notifications</span>
+          </button>
+
+          <button type="button" class="sidebar-nav-btn" data-tab="settings">
+            <span class="sidebar-icon">⚙️</span>
+            <span class="sidebar-label">Pharmacy Settings</span>
+          </button>
+
+        </nav>
+
+        <!-- Sidebar Footer -->
+        <div class="sidebar-footer-box">
+          <div class="security-chip">
+            <span class="sec-dot"></span>
+            <span>256-bit Secure DB</span>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- MAIN CONTENT PANELS CONTAINER -->
+      <main class="workspace-content-pane">
+        
+        <!-- ====================================================================
+             PANEL 1: DASHBOARD
+             ==================================================================== -->
+        <section class="content-panel panel-active" id="paneDashboard" aria-label="Dashboard Overview">
+          
+          <!-- Top Greeting Bar -->
+          <div class="dash-greeting-row">
+            <div>
+              <h2 class="greeting-title" id="greetingUserTitle">Good morning, Pharmacist</h2>
+              <p class="greeting-subtitle">Here's what needs your attention today.</p>
+            </div>
+            <button type="button" class="btn-primary btn-dash-hero-upload" id="dashHeroUploadBtn">
+              <span>+ Upload Bill</span>
+            </button>
+          </div>
+
+          <!-- REAL 6 KPI METRICS (Strictly computed from real database records) -->
+          <div class="kpi-grid-6">
+            
+            <!-- 1: Total Real Inventory Value -->
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header">
+                <span class="kpi-label">Inventory Value</span>
+                <span class="kpi-icon-pill green">₹</span>
               </div>
-              <button type="button" class="text-link" id="viewAllInventoryLink">View All Inventory →</button>
+              <div class="kpi-metric-main" id="kpiTotalValue">₹0</div>
+              <div class="kpi-subtext" id="kpiTotalCount">0 medicines • 0 batches</div>
             </div>
 
-            <div class="urgent-batch-table-wrapper">
+            <!-- 2: Active Medicines -->
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header">
+                <span class="kpi-label">Medicines in Stock</span>
+                <span class="kpi-icon-pill teal">📦</span>
+              </div>
+              <div class="kpi-metric-main" id="kpiMedicinesCount">0</div>
+              <div class="kpi-subtext" id="kpiBatchesTotalCount">0 total active batches</div>
+            </div>
+
+            <!-- 3: Expiring Soon (< 60 Days) -->
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header">
+                <span class="kpi-label">Expiring Soon</span>
+                <span class="kpi-icon-pill amber">⏱️</span>
+              </div>
+              <div class="kpi-metric-main text-warning" id="kpiExpiringCount">0</div>
+              <div class="kpi-subtext" id="kpiExpiringSubtext">0 batches approaching expiry</div>
+            </div>
+
+            <!-- 4: At-Risk Value -->
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header">
+                <span class="kpi-label">At-Risk Value</span>
+                <span class="kpi-icon-pill red">⚠️</span>
+              </div>
+              <div class="kpi-metric-main text-critical" id="kpiAtRiskValue">₹0</div>
+              <div class="kpi-subtext" id="kpiAtRiskSubtext">Requires dispensation or return</div>
+            </div>
+
+            <!-- 5: Expired Stock -->
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header">
+                <span class="kpi-label">Expired Stock</span>
+                <span class="kpi-icon-pill red">🚫</span>
+              </div>
+              <div class="kpi-metric-main" id="kpiExpiredValue">₹0</div>
+              <div class="kpi-subtext" id="kpiExpiredCount">0 expired batches</div>
+            </div>
+
+            <!-- 6: Stock Cleared / Saved -->
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header">
+                <span class="kpi-label">Stock Cleared</span>
+                <span class="kpi-icon-pill green">✓</span>
+              </div>
+              <div class="kpi-metric-main text-success" id="kpiClearedValue">₹0</div>
+              <div class="kpi-subtext" id="kpiClearedCount">0 loss prevented via returns</div>
+            </div>
+
+          </div>
+
+          <!-- BEAUTIFUL INTENTIONAL EMPTY STATE (When inventory = 0) -->
+          <div class="empty-inventory-banner gradient-border-card" id="emptyInventoryBanner">
+            <div class="empty-banner-inner">
+              
+              <!-- Clean Pharmacy Vector Graphic -->
+              <div class="empty-vector-art" aria-hidden="true">
+                <svg width="90" height="90" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="8" y="16" width="80" height="68" rx="14" fill="#F0FDFA" stroke="#CCFBF1" stroke-width="2"/>
+                  <rect x="20" y="28" width="56" height="12" rx="4" fill="#D1FAE5"/>
+                  <rect x="20" y="46" width="24" height="10" rx="3" fill="#E2E8F0"/>
+                  <rect x="48" y="46" width="28" height="10" rx="3" fill="#A7F3D0"/>
+                  <rect x="20" y="62" width="34" height="10" rx="3" fill="#BAE6FD"/>
+                  <circle cx="70" cy="67" r="9" fill="#059669"/>
+                  <path d="M70 63V71M66 67H74" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+              </div>
+
+              <div class="empty-banner-content">
+                <h3 class="empty-heading">Your inventory is waiting to be organized.</h3>
+                <p class="empty-subtext">
+                  Upload your first purchase bill and EXPIREDNOT will turn it into a structured medicine inventory with automated batch tracking and FEFO expiry guidance.
+                </p>
+              </div>
+
+              <div class="empty-banner-actions">
+                <button type="button" class="btn-primary" id="emptyUploadBtn">
+                  <span>Upload Your First Bill →</span>
+                </button>
+                <button type="button" class="btn-secondary" id="emptyAddMedBtn">
+                  <span>+ Add Medicine Manually</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- POPULATED INVENTORY AT-RISK SECTION (Shown only when real items exist) -->
+          <div class="dashboard-main-grid" id="populatedDashboardGrid" hidden>
+            
+            <!-- Left: Urgent FEFO Expiry Action Queue -->
+            <div class="dash-card gradient-border-card">
+              <div class="dash-card-header">
+                <div class="dash-header-title">
+                  <span class="pulse-indicator"></span>
+                  <h3>Urgent Expiry Action Queue (FEFO Prioritized)</h3>
+                </div>
+                <button type="button" class="text-link" id="viewAllInventoryLink">View All Inventory →</button>
+              </div>
+
+              <div class="urgent-batch-table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Medicine & Salt</th>
+                      <th>Batch</th>
+                      <th>Stock</th>
+                      <th>Expiry</th>
+                      <th>Risk Status</th>
+                      <th>FEFO Advice</th>
+                      <th>At-Risk Value</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="urgentBatchTableBody">
+                    <!-- Dynamically populated from real store -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: Real Activity Feed & Expiry Forecast -->
+            <div class="dash-sidebar-col">
+              
+              <div class="dash-card gradient-border-subtle">
+                <div class="dash-card-header">
+                  <h3>Recent Activity</h3>
+                </div>
+                <div class="activity-timeline-list" id="activityTimelineList">
+                  <div class="empty-state-small">
+                    <p>No activity yet.</p>
+                    <span>Your inventory activity will appear here once you start adding stock.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dash-card gradient-border-subtle">
+                <div class="dash-card-header">
+                  <h3>6-Month Expiry Horizon</h3>
+                </div>
+                <div class="forecast-bars-container" id="forecastBarsContainer"></div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 2: DEDICATED UPLOAD PURCHASE BILLS HUB (AI/OCR PIPELINE)
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneBills" aria-label="Upload Purchase Bills">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Turn your purchase bill into inventory.</h2>
+            <p class="section-subtext">Upload a pharmacy invoice and EXPIREDNOT will extract the medicine, batch, quantity, price, and expiry information for you.</p>
+          </div>
+
+          <!-- Bill Dropzone Area -->
+          <div class="bill-dropzone-wrapper gradient-border-card">
+            
+            <div class="dropzone-box" id="billDropzone">
+              <input type="file" id="billFileInput" accept="image/*,application/pdf" class="file-input-hidden">
+              
+              <div class="dropzone-icon-circle">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+
+              <div class="dropzone-text-group">
+                <h4 class="dropzone-title">Drag & Drop Your Bill Here</h4>
+                <p class="dropzone-sub">PDF, JPG, JPEG or PNG</p>
+              </div>
+
+              <div class="dropzone-actions-row">
+                <button type="button" class="btn-primary" id="browseFileBtn">
+                  <span>Browse Files</span>
+                </button>
+                <button type="button" class="btn-secondary" id="cameraUploadBtn">
+                  <span>📷 Take Photo / Scan</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Test Invoices for Demonstrations -->
+            <div class="sample-bills-bar">
+              <span class="sample-bills-label">Try with sample real distributor invoices:</span>
+              <div class="sample-bills-pills">
+                <button type="button" class="sample-bill-btn" data-sample="cipla">
+                  📄 Cipla Healthcare Invoice (#CP-8492)
+                </button>
+                <button type="button" class="sample-bill-btn" data-sample="sunpharma">
+                  📄 Sun Pharma Stockist Bill (#SP-1092)
+                </button>
+                <button type="button" class="sample-bill-btn" data-sample="alkem">
+                  📄 Alkem Labs Distributor Bill (#ALK-3810)
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SIDE-BY-SIDE OCR EXTRACTION & VERIFICATION AREA -->
+          <div class="ocr-review-container gradient-border-card" id="ocrReviewContainer" hidden>
+            
+            <div class="ocr-review-header">
+              <div class="ocr-meta-group">
+                <span class="ocr-badge">AI/OCR EXTRACTION READY</span>
+                <h3 class="ocr-bill-title" id="ocrDistributorDisplay">Distributor Invoice</h3>
+                <div class="ocr-meta-row" id="ocrMetaRow">
+                  <span>Invoice No: <strong id="ocrInvoiceNoDisplay">—</strong></span>
+                  <span>•</span>
+                  <span>Date: <strong id="ocrDateDisplay">—</strong></span>
+                  <span>•</span>
+                  <span>Total Items: <strong id="ocrItemsCountDisplay">0</strong></span>
+                </div>
+              </div>
+
+              <div class="ocr-header-actions">
+                <button type="button" class="btn-secondary" id="ocrAddRowBtn">+ Add Line Item</button>
+                <button type="button" class="btn-primary" id="ocrConfirmSaveBtn">
+                  <span>Confirm & Add to Inventory →</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Side-by-Side Grid (Left: Original Bill Preview | Right: Extracted Table) -->
+            <div class="side-by-side-ocr-layout">
+              
+              <!-- Left: Document Preview -->
+              <div class="doc-preview-pane">
+                <div class="doc-preview-header">
+                  <span>Original Bill Preview</span>
+                  <span class="doc-preview-status">High Resolution Scan</span>
+                </div>
+                <div class="doc-preview-sheet" id="docPreviewSheet">
+                  <div class="simulated-bill-header">
+                    <div class="sim-bill-logo" id="simBillLogo">CIPLA DISTRIBUTORS</div>
+                    <div class="sim-bill-meta" id="simBillMeta">TAX INVOICE • GSTIN: 07AABC1092</div>
+                  </div>
+                  <div class="simulated-bill-table" id="simBillTable">
+                    <!-- Simulated document lines for side-by-side verification -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Extracted Form Table -->
+              <div class="doc-extracted-pane">
+                <div class="doc-preview-header">
+                  <span>Extracted Structured Data (Human Verification Gate)</span>
+                  <span class="doc-confidence-legend">✓ High Confidence | ⚠ Check Unverified</span>
+                </div>
+
+                <div class="ocr-table-wrapper">
+                  <table class="data-table ocr-table">
+                    <thead>
+                      <tr>
+                        <th>Confidence</th>
+                        <th>Medicine Name *</th>
+                        <th>Pack</th>
+                        <th>Batch *</th>
+                        <th>Expiry (MM/YY) *</th>
+                        <th>Qty *</th>
+                        <th>Rate (₹) *</th>
+                        <th>MRP</th>
+                        <th>Total</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="ocrTableBody">
+                      <!-- Dynamically rendered editable rows -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- Ingested Bills Audit History -->
+          <div class="dash-card gradient-border-subtle" style="margin-top: 2rem;">
+            <div class="dash-card-header">
+              <h3>Ingested Purchase Bills History</h3>
+            </div>
+            <div id="billsHistoryContainer">
+              <div class="empty-state-small" id="emptyBillsHistory">
+                <p>No purchase bills ingested yet.</p>
+                <span>Upload your first invoice above to see your purchase history.</span>
+              </div>
+              <div class="bills-history-list" id="billsHistoryList" hidden></div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 3: MEDICINE INVENTORY
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneInventory" aria-label="Medicine Inventory">
+          
+          <div class="inventory-controls-header">
+            <div class="inventory-search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="inventorySearchInput" class="form-input search-input" placeholder="Search by medicine name, salt, or batch number...">
+            </div>
+
+            <div class="inventory-filter-group">
+              <select id="inventoryExpiryFilter" class="form-input select-input filter-select">
+                <option value="all">All Expiry Statuses</option>
+                <option value="critical">Critical (0–30 Days)</option>
+                <option value="warning">Warning (31–60 Days)</option>
+                <option value="watchlist">Watchlist (61–90 Days)</option>
+                <option value="safe">Safe (90+ Days)</option>
+              </select>
+
+              <button type="button" class="btn-primary" id="inventoryAddMedBtn">
+                <span>+ Add Medicine</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="dash-card gradient-border-card" style="padding: 0; overflow: hidden;">
+            <div class="inventory-table-wrapper">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Medicine & Salt</th>
-                    <th>Batch</th>
-                    <th>Stock</th>
-                    <th>Expiry</th>
-                    <th>Risk Status</th>
-                    <th>At-Risk Value</th>
-                    <th>Action</th>
+                    <th>Medicine Name & Pack</th>
+                    <th>Batch No.</th>
+                    <th>Rack Location</th>
+                    <th>Stock (Units)</th>
+                    <th>Expiry Date</th>
+                    <th>Status</th>
+                    <th>FEFO Advice</th>
+                    <th>Purchase Rate</th>
+                    <th>Total Value</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
-                <tbody id="urgentBatchTableBody">
+                <tbody id="inventoryTableBody">
                   <!-- Dynamically populated from real store -->
                 </tbody>
               </table>
             </div>
+
+            <div class="empty-table-state" id="emptyInventoryTableState">
+              <div class="empty-state-small">
+                <p>No medicines in inventory yet.</p>
+                <span>Upload a purchase bill or click "+ Add Medicine" to record your stock.</span>
+              </div>
+            </div>
           </div>
 
-          <!-- Right: Real Activity Feed & Expiry Forecast -->
-          <div class="dash-sidebar-col">
-            
-            <!-- Real Activity Card -->
-            <div class="dash-card gradient-border-subtle">
-              <div class="dash-card-header">
-                <h3>Recent Activity</h3>
+        </section>
+
+        <!-- ====================================================================
+             PANEL 4: BATCHES & EXPIRY TRACKER (FEFO)
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneBatches" aria-label="Batches and FEFO">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Batch Management & FEFO Intelligence</h2>
+            <p class="section-subtext">First Expiry, First Out (FEFO) guarantees you always dispense the earliest-expiring batch to eliminate stock loss.</p>
+          </div>
+
+          <div class="dash-card gradient-border-card" style="padding: 0; overflow: hidden;">
+            <div class="inventory-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th>Batch Number</th>
+                    <th>Quantity</th>
+                    <th>Expiry Date</th>
+                    <th>Days Remaining</th>
+                    <th>FEFO Priority</th>
+                    <th>Supplier</th>
+                    <th>Stock Value</th>
+                  </tr>
+                </thead>
+                <tbody id="batchesTableBody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+            <div class="empty-table-state" id="emptyBatchesTableState">
+              <div class="empty-state-small">
+                <p>No batches recorded yet.</p>
+                <span>Upload a bill to view batch management.</span>
               </div>
-              <div class="activity-timeline-list" id="activityTimelineList">
-                <div class="empty-state-small">
-                  <p>No activity yet.</p>
-                  <span>Your inventory activity will appear here once you start adding stock.</span>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 5: LOW STOCK ALERTS
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneLowStock" aria-label="Low Stock Alerts">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Low Stock & Reorder Alerts</h2>
+            <p class="section-subtext">Automatically detects medicines falling below your minimum inventory safety thresholds.</p>
+          </div>
+
+          <div class="dash-card gradient-border-card">
+            <div class="dash-card-header">
+              <h3>Medicines Requiring Reorder</h3>
+            </div>
+            <div id="lowStockContent">
+              <div class="empty-state-small" id="emptyLowStockState">
+                <p>No low stock items.</p>
+                <span>All medicine stock is currently above safety thresholds.</span>
+              </div>
+              <div class="low-stock-list" id="lowStockList" hidden></div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 6: STOCK CLEARANCE & RETURNS
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneReturns" aria-label="Distributor Returns">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Stock Clearance & Distributor Returns</h2>
+            <p class="section-subtext">Automatically groups expiring batches by wholesale stockist to generate return debit notes before cutoff deadlines.</p>
+          </div>
+
+          <div class="returns-container" id="returnsContainer">
+            <div class="dash-card gradient-border-card">
+              <div class="dash-card-header">
+                <h3>Eligible Expiry Return Claims</h3>
+              </div>
+              <div id="returnsListContent">
+                <div class="empty-state-small" id="emptyReturnsState">
+                  <p>No batches currently flagged for distributor return.</p>
+                  <span>When batches enter the 60-day return window, EXPIREDNOT will automatically organize them into supplier return claims here.</span>
+                </div>
+                <div class="returns-cards-grid" id="returnsCardsGrid" hidden></div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 7: SALES & STOCK MOVEMENT LOG
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneMovement" aria-label="Sales and Stock Movement">
+          
+          <div class="section-intro-header-with-action">
+            <div>
+              <h2 class="section-heading">Sales & Stock Movement Log</h2>
+              <p class="section-subtext">Track all stock transactions: Purchased, Sold, Returned, Damaged, and Cleared.</p>
+            </div>
+            <button type="button" class="btn-primary" id="logMovementBtn">+ Log Sale / Dispense</button>
+          </div>
+
+          <div class="dash-card gradient-border-card" style="padding: 0; overflow: hidden;">
+            <div class="inventory-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date & Time</th>
+                    <th>Type</th>
+                    <th>Medicine</th>
+                    <th>Batch No.</th>
+                    <th>Quantity</th>
+                    <th>Value</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="movementTableBody">
+                  <!-- Populated from actual movements -->
+                </tbody>
+              </table>
+            </div>
+            <div class="empty-table-state" id="emptyMovementState">
+              <div class="empty-state-small">
+                <p>No stock movement recorded yet.</p>
+                <span>Stock movements will be logged as you purchase, sell, or return medicines.</span>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 8: SUPPLIERS & STOCKISTS
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneSuppliers" aria-label="Suppliers Directory">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Suppliers & Wholesale Stockists</h2>
+            <p class="section-subtext">Manage supplier contacts, purchase history, and return claim terms.</p>
+          </div>
+
+          <div class="suppliers-grid" id="suppliersGrid">
+            <div class="empty-state-small" id="emptySuppliersState">
+              <p>No suppliers registered yet.</p>
+              <span>Suppliers are automatically created when you upload wholesale purchase bills.</span>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 9: PHARMACY EXPENSES
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneExpenses" aria-label="Pharmacy Expenses">
+          
+          <div class="section-intro-header-with-action">
+            <div>
+              <h2 class="section-heading">Operating Expenses</h2>
+              <p class="section-subtext">Track monthly operating expenses (Rent, Electricity, Staff, Delivery, Packaging).</p>
+            </div>
+            <button type="button" class="btn-primary" id="addExpenseBtn">+ Add Expense</button>
+          </div>
+
+          <div class="dash-card gradient-border-card" style="padding: 0; overflow: hidden;">
+            <div class="inventory-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody id="expensesTableBody">
+                  <!-- Real expenses list -->
+                </tbody>
+              </table>
+            </div>
+            <div class="empty-table-state" id="emptyExpensesState">
+              <div class="empty-state-small">
+                <p>No expenses recorded yet.</p>
+                <span>Click "+ Add Expense" to track your pharmacy costs.</span>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 10: ANALYTICS & BUSINESS INSIGHTS
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneAnalytics" aria-label="Analytics and Insights">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Analytics & Waste Prevention Insights</h2>
+            <p class="section-subtext">Real-time financial and inventory intelligence calculated exclusively from your stored records.</p>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header"><span class="kpi-label">Loss Prevented</span><span class="kpi-icon-pill green">₹</span></div>
+              <div class="kpi-metric-main text-success" id="anaLossPrevented">₹0</div>
+              <div class="kpi-subtext">via timely returns & clearance</div>
+            </div>
+
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header"><span class="kpi-label">Active Stock Value</span><span class="kpi-icon-pill teal">📦</span></div>
+              <div class="kpi-metric-main" id="anaActiveStock">₹0</div>
+              <div class="kpi-subtext">in active inventory</div>
+            </div>
+
+            <div class="kpi-card gradient-border-subtle">
+              <div class="kpi-card-header"><span class="kpi-label">Total Bills Ingested</span><span class="kpi-icon-pill blue">🧾</span></div>
+              <div class="kpi-metric-main" id="anaTotalBills">0</div>
+              <div class="kpi-subtext">purchase invoices</div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 11: EVENT-DRIVEN NOTIFICATIONS
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneNotifications" aria-label="Notifications Feed">
+          
+          <div class="section-intro-header">
+            <h2 class="section-heading">Notifications & Alerts</h2>
+            <p class="section-subtext">Real-time alerts triggered exclusively when actual inventory events occur.</p>
+          </div>
+
+          <div class="dash-card gradient-border-card">
+            <div id="notificationsListContent">
+              <div class="empty-state-small" id="emptyNotifsState">
+                <p>No unread notifications.</p>
+                <span>You're all caught up! Real alerts will appear here when medicines approach expiry.</span>
+              </div>
+              <div class="notifications-feed" id="notificationsFeed" hidden></div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 12: PHARMACY SETTINGS & PRESENTATION DEMO MODE
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneSettings" aria-label="Pharmacy Settings">
+          
+          <div class="settings-grid">
+            
+            <div class="dash-card gradient-border-card">
+              <div class="dash-card-header">
+                <h3>Pharmacy Profile & Licence</h3>
+              </div>
+              <div class="settings-form">
+                <div class="form-group">
+                  <label class="form-label">Chemist Shop Name</label>
+                  <input type="text" id="setShopName" class="form-input" readonly>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Drug Licence No. (D.L. No.)</label>
+                  <input type="text" id="setDlNumber" class="form-input mono-input" readonly>
+                  <span class="field-helper-text">Private & confidential identifier.</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Responsible Person</label>
+                  <input type="text" id="setOwnerName" class="form-input" readonly>
                 </div>
               </div>
             </div>
 
-            <!-- Expiry Timeline Outlook -->
             <div class="dash-card gradient-border-subtle">
               <div class="dash-card-header">
-                <h3>6-Month Expiry Horizon</h3>
+                <h3>Presentation Demo Mode (Isolated)</h3>
               </div>
-              <div class="forecast-bars-container" id="forecastBarsContainer">
-                <!-- Dynamically rendered based on actual data -->
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-      </section>
-
-      <!-- ====================================================================
-           TAB 2: PURCHASE BILL UPLOAD & OCR INGESTION
-           ==================================================================== -->
-      <section class="tab-pane tab-pane-hidden" id="paneBills" aria-label="Purchase Bill Upload & Ingestion">
-        
-        <div class="section-intro-header">
-          <h2 class="section-heading">Smart Purchase Bill Ingestion</h2>
-          <p class="section-subtext">Upload wholesale bills or invoices. EXPIREDNOT automatically extracts medicines, batch numbers, MRP, purchase rates, and expiry dates.</p>
-        </div>
-
-        <!-- Bill Dropzone Area -->
-        <div class="bill-dropzone-wrapper gradient-border-card">
-          
-          <div class="dropzone-box" id="billDropzone">
-            <input type="file" id="billFileInput" accept="image/*,application/pdf" class="file-input-hidden">
-            
-            <div class="dropzone-icon-circle">
-              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-            </div>
-
-            <div class="dropzone-text-group">
-              <h4 class="dropzone-title">Drag & drop your pharmacy purchase bill here</h4>
-              <p class="dropzone-sub">Supports PDF, PNG, JPG, or Camera photos from phone / scanner</p>
-            </div>
-
-            <div class="dropzone-actions-row">
-              <button type="button" class="btn-primary" id="browseFileBtn">
-                <span>Browse Local File</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Quick Test Purchase Invoices for Presentations -->
-          <div class="sample-bills-bar">
-            <span class="sample-bills-label">Try with sample realistic distributor bills:</span>
-            <div class="sample-bills-pills">
-              <button type="button" class="sample-bill-btn" data-sample="cipla">
-                📄 Cipla Healthcare Invoice (#CP-8492)
-              </button>
-              <button type="button" class="sample-bill-btn" data-sample="sunpharma">
-                📄 Sun Pharma Stockist Bill (#SP-1092)
-              </button>
-              <button type="button" class="sample-bill-btn" data-sample="alkem">
-                📄 Alkem Labs Distributor Bill (#ALK-3810)
-              </button>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- OCR INGESTION & EXTRACTION REVIEW TABLE (Shown when a bill is uploaded) -->
-        <div class="ocr-review-container gradient-border-card" id="ocrReviewContainer" hidden>
-          
-          <div class="ocr-review-header">
-            <div class="ocr-meta-group">
-              <span class="ocr-badge">OCR EXTRACTION COMPLETE</span>
-              <h3 class="ocr-bill-title" id="ocrDistributorDisplay">Distributor Invoice</h3>
-              <div class="ocr-meta-row" id="ocrMetaRow">
-                <span>Invoice No: <strong id="ocrInvoiceNoDisplay">—</strong></span>
-                <span>•</span>
-                <span>Date: <strong id="ocrDateDisplay">—</strong></span>
-                <span>•</span>
-                <span>Total Items: <strong id="ocrItemsCountDisplay">0</strong></span>
+              <div class="settings-card-body">
+                <p class="settings-desc">
+                  Need sample data for a presentation? You can load temporary demonstration data with 1 click. Your real pharmacy data is never mixed or altered.
+                </p>
+                <div class="demo-controls-box">
+                  <button type="button" class="btn-primary" id="loadDemoDataBtn">
+                    <span>Load Presentation Demo Data</span>
+                  </button>
+                  <button type="button" class="btn-secondary" id="clearAllDataBtn" style="color: var(--status-critical);">
+                    <span>Reset / Clear Real Database</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div class="ocr-header-actions">
-              <button type="button" class="btn-secondary" id="ocrAddRowBtn">+ Add Line Item</button>
-              <button type="button" class="btn-primary" id="ocrConfirmSaveBtn">
-                <span>Confirm & Add to Stock</span>
-                <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </button>
-            </div>
           </div>
 
-          <!-- Line items editable table -->
-          <div class="ocr-table-wrapper">
-            <table class="data-table ocr-table">
-              <thead>
-                <tr>
-                  <th>Medicine Name *</th>
-                  <th>Pack / Form</th>
-                  <th>Batch No. *</th>
-                  <th>Expiry (MM/YY) *</th>
-                  <th>Qty (Strips/Units) *</th>
-                  <th>Purchase Rate (₹) *</th>
-                  <th>MRP (₹)</th>
-                  <th>Total Value</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="ocrTableBody">
-                <!-- Dynamically populated rows -->
-              </tbody>
-            </table>
-          </div>
+        </section>
 
-        </div>
+      </main>
 
-        <!-- Ingested Bills History -->
-        <div class="dash-card gradient-border-subtle" style="margin-top: 2rem;">
-          <div class="dash-card-header">
-            <h3>Ingested Purchase Bills History</h3>
-          </div>
-          <div id="billsHistoryContainer">
-            <div class="empty-state-small" id="emptyBillsHistory">
-              <p>No purchase bills ingested yet.</p>
-              <span>Upload your first bill above to see your purchase history.</span>
-            </div>
-            <div class="bills-history-list" id="billsHistoryList" hidden></div>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- ====================================================================
-           TAB 3: LIVE BATCH INVENTORY
-           ==================================================================== -->
-      <section class="tab-pane tab-pane-hidden" id="paneInventory" aria-label="Live Batch Inventory">
-        
-        <div class="inventory-controls-header">
-          <div class="inventory-search-box">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="text" id="inventorySearchInput" class="form-input search-input" placeholder="Search by medicine name, salt, or batch number...">
-          </div>
-
-          <div class="inventory-filter-group">
-            <select id="inventoryExpiryFilter" class="form-input select-input filter-select">
-              <option value="all">All Expiry Statuses</option>
-              <option value="critical">Critical (≤ 30 Days)</option>
-              <option value="warning">Warning (31–60 Days)</option>
-              <option value="watchlist">Watchlist (61–90 Days)</option>
-              <option value="safe">Safe (> 90 Days)</option>
-            </select>
-
-            <button type="button" class="btn-primary" id="inventoryAddMedBtn">
-              <span>+ Add Medicine</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Inventory Data Table -->
-        <div class="dash-card gradient-border-card" style="padding: 0; overflow: hidden;">
-          <div class="inventory-table-wrapper">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Medicine Name & Pack</th>
-                  <th>Batch No.</th>
-                  <th>Rack / Location</th>
-                  <th>Stock Available</th>
-                  <th>Expiry Date</th>
-                  <th>Days Remaining</th>
-                  <th>Purchase Price</th>
-                  <th>Total Value</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="inventoryTableBody">
-                <!-- Dynamically rendered rows from real database -->
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Empty Table State -->
-          <div class="empty-table-state" id="emptyInventoryTableState">
-            <div class="empty-state-small">
-              <p>No medicines in inventory yet.</p>
-              <span>Upload a purchase bill or click "+ Add Medicine" to record your stock.</span>
-            </div>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- ====================================================================
-           TAB 4: DISTRIBUTOR RETURNS & DEBIT NOTES
-           ==================================================================== -->
-      <section class="tab-pane tab-pane-hidden" id="paneReturns" aria-label="Distributor Returns">
-        
-        <div class="section-intro-header">
-          <h2 class="section-heading">Distributor Return Claims & Debit Notes</h2>
-          <p class="section-subtext">Automatically group expiring medicines by wholesale distributor to generate return debit notes before return cutoff deadlines.</p>
-        </div>
-
-        <div class="returns-container" id="returnsContainer">
-          <div class="dash-card gradient-border-card">
-            <div class="dash-card-header">
-              <h3>Eligible Expiry Return Claims</h3>
-            </div>
-            <div id="returnsListContent">
-              <div class="empty-state-small" id="emptyReturnsState">
-                <p>No batches currently flagged for distributor return.</p>
-                <span>When batches enter the 60-day return window, EXPIREDNOT will automatically organize them into supplier return claims here.</span>
-              </div>
-              <div class="returns-cards-grid" id="returnsCardsGrid" hidden></div>
-            </div>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- ====================================================================
-           TAB 5: SETTINGS & PRESENTATION DEMO MODE
-           ==================================================================== -->
-      <section class="tab-pane tab-pane-hidden" id="paneSettings" aria-label="Pharmacy Settings">
-        
-        <div class="settings-grid">
-          
-          <!-- Pharmacy Profile Settings -->
-          <div class="dash-card gradient-border-card">
-            <div class="dash-card-header">
-              <h3>Pharmacy Profile</h3>
-            </div>
-            <div class="settings-form">
-              <div class="form-group">
-                <label class="form-label">Pharmacy Name</label>
-                <input type="text" id="setShopName" class="form-input" readonly>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Drug Licence No. (D.L. No.)</label>
-                <input type="text" id="setDlNumber" class="form-input mono-input" readonly>
-                <span class="field-helper-text">Confidential business identifier.</span>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Responsible Pharmacist</label>
-                <input type="text" id="setOwnerName" class="form-input" readonly>
-              </div>
-            </div>
-          </div>
-
-          <!-- Presentation Demo Mode Card -->
-          <div class="dash-card gradient-border-subtle">
-            <div class="dash-card-header">
-              <h3>College / Presentation Demo Mode</h3>
-            </div>
-            <div class="settings-card-body">
-              <p class="settings-desc">
-                Need sample data for a college demo or presentation? You can load temporary demonstration data with 1 click. Your real pharmacy data is never mixed or altered.
-              </p>
-              
-              <div class="demo-controls-box">
-                <button type="button" class="btn-primary" id="loadDemoDataBtn">
-                  <span>Load Presentation Demo Data</span>
-                </button>
-                <button type="button" class="btn-secondary" id="clearAllDataBtn" style="color: var(--status-critical);">
-                  <span>Reset / Clear Pharmacy Data</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-      </section>
-
-    </main>
+    </div>
 
   </div>
 
   <!-- ==========================================================================
-       MODAL: MANUAL ADD MEDICINE / BATCH
+       MODAL 1: MANUAL ADD MEDICINE
        ========================================================================== -->
   <div id="addMedModal" class="modal-wrapper view-hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" id="addMedBackdrop"></div>
@@ -1782,7 +1707,7 @@
 
         <div class="form-row-3col">
           <div class="form-group">
-            <label for="mQty" class="form-label">Quantity (Strips/Units) *</label>
+            <label for="mQty" class="form-label">Quantity *</label>
             <input type="number" id="mQty" class="form-input" min="1" placeholder="e.g. 20" required>
           </div>
 
@@ -1818,7 +1743,103 @@
   </div>
 
   <!-- ==========================================================================
-       GOOGLE OAUTH ACCOUNT SELECTOR MODAL
+       MODAL 2: LOG SALE / STOCK MOVEMENT
+       ========================================================================== -->
+  <div id="movementModal" class="modal-wrapper view-hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" id="movementBackdrop"></div>
+    <div class="modal-card gradient-border-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Log Stock Movement / Sale</h3>
+        <button type="button" class="btn-close-modal" id="closeMovementBtn">×</button>
+      </div>
+
+      <form id="movementForm" class="modal-form" novalidate>
+        <div class="form-group">
+          <label for="movMedicineSelect" class="form-label">Select Medicine / Batch *</label>
+          <div class="input-wrapper select-wrapper">
+            <select id="movMedicineSelect" class="form-input select-input" required></select>
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="movType" class="form-label">Movement Type *</label>
+            <div class="input-wrapper select-wrapper">
+              <select id="movType" class="form-input select-input" required>
+                <option value="Sold">Sold / Dispensed</option>
+                <option value="Returned">Returned to Supplier</option>
+                <option value="Damaged">Damaged / Discarded</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="movQty" class="form-label">Quantity *</label>
+            <input type="number" id="movQty" class="form-input" min="1" placeholder="e.g. 2" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="movNotes" class="form-label">Notes</label>
+          <input type="text" id="movNotes" class="form-input" placeholder="e.g. Prescription #RX-9812">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancelMovementBtn">Cancel</button>
+          <button type="submit" class="btn-primary">Record Movement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 3: ADD EXPENSE
+       ========================================================================== -->
+  <div id="expenseModal" class="modal-wrapper view-hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" id="expenseBackdrop"></div>
+    <div class="modal-card gradient-border-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Record Operating Expense</h3>
+        <button type="button" class="btn-close-modal" id="closeExpenseBtn">×</button>
+      </div>
+
+      <form id="expenseForm" class="modal-form" novalidate>
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label for="expCategory" class="form-label">Category *</label>
+            <div class="input-wrapper select-wrapper">
+              <select id="expCategory" class="form-input select-input" required>
+                <option value="Rent">Shop Rent</option>
+                <option value="Staff">Staff Salary</option>
+                <option value="Electricity">Electricity & Power</option>
+                <option value="Delivery">Delivery & Logistics</option>
+                <option value="Packaging">Packaging & Bags</option>
+                <option value="Other">Other Expense</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="expAmount" class="form-label">Amount (₹) *</label>
+            <input type="number" id="expAmount" class="form-input" step="0.01" min="1" placeholder="e.g. 3500" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="expDesc" class="form-label">Description *</label>
+          <input type="text" id="expDesc" class="form-input" placeholder="e.g. Monthly electricity bill" required>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancelExpenseBtn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 4: GOOGLE OAUTH MODAL (NEW VS EXISTING USER ROUTING)
        ========================================================================== -->
   <div id="googleModal" class="google-modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="googleModalTitle">
     <div class="google-modal-backdrop" id="googleModalBackdrop"></div>
@@ -1835,30 +1856,29 @@
         <p class="google-subtitle">Choose an account to continue to <strong>EXPIREDNOT</strong></p>
       </div>
 
-      <!-- Account Selection List -->
       <div class="google-accounts-list" id="googleAccountsList">
         
-        <!-- Account 1: Rajesh Sharma -->
+        <!-- Preconfigured Account 1 -->
         <button type="button" class="google-account-item" data-name="Rajesh Sharma" data-email="rajesh.sharma@medicarechemists.com" data-shop="Medicare Chemist & Druggist" data-dl="DL-20B/94812">
           <div class="google-avatar avatar-emerald">RS</div>
           <div class="google-account-meta">
             <span class="acc-name">Rajesh Sharma</span>
             <span class="acc-email">rajesh.sharma@medicarechemists.com</span>
           </div>
-          <span class="acc-badge">Pharmacist</span>
+          <span class="acc-badge">Registered</span>
         </button>
 
-        <!-- Account 2: Apollo Medicos Team -->
-        <button type="button" class="google-account-item" data-name="Apollo Pharmacy Team" data-email="apollo.medicos@gmail.com" data-shop="Apollo Medicos & Healthcare" data-dl="DL-21A/63019">
-          <div class="google-avatar avatar-blue">AP</div>
+        <!-- New User Google Account 2 -->
+        <button type="button" class="google-account-item" data-name="Sunil Verma" data-email="sunil.chemist@gmail.com" data-new="true">
+          <div class="google-avatar avatar-blue">SV</div>
           <div class="google-account-meta">
-            <span class="acc-name">Apollo Pharmacy Team</span>
-            <span class="acc-email">apollo.medicos@gmail.com</span>
+            <span class="acc-name">Sunil Verma</span>
+            <span class="acc-email">sunil.chemist@gmail.com</span>
           </div>
-          <span class="acc-badge">Verified</span>
+          <span class="acc-badge new-user">New Setup</span>
         </button>
 
-        <!-- Option 3: Use another account -->
+        <!-- Custom Account Entry -->
         <div class="custom-google-box">
           <button type="button" class="google-account-item btn-another-acc" id="useAnotherGoogleBtn">
             <div class="google-avatar avatar-gray">
@@ -1880,13 +1900,11 @@
 
       </div>
 
-      <!-- Loading State during Google Auth -->
       <div class="google-loading-state" id="googleLoadingState" hidden>
         <div class="google-spinner"></div>
-        <span id="googleLoadingText">Signing in with Google...</span>
+        <span id="googleLoadingText">Authenticating with Google...</span>
       </div>
 
-      <!-- Modal Footer -->
       <div class="google-modal-footer">
         <p class="google-policy-text">
           To continue, Google will securely share your name, email address, and language preference with EXPIREDNOT.
