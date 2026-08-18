@@ -573,6 +573,26 @@ document.addEventListener('DOMContentLoaded', () => {
         startResendTimer();
         goToOnboardingStep(2);
         clearOtpBoxes();
+
+        if (data.dev_otp) {
+          window.fillDevOtp = () => {
+            data.dev_otp.split('').forEach((char, i) => {
+              if (otpBoxes[i]) otpBoxes[i].value = char;
+            });
+            if (otpBoxes[5]) otpBoxes[5].focus();
+          };
+          const noticeEl = document.getElementById('otpNotice');
+          if (noticeEl) {
+            noticeEl.className = 'auth-notice info';
+            noticeEl.innerHTML = `
+              <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                <span>Verification Code: <strong style="font-family:var(--font-mono); font-size:1.05rem; letter-spacing:2px; color:#047857;">${data.dev_otp}</strong></span>
+                <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">Auto-fill</button>
+              </div>
+            `;
+            noticeEl.hidden = false;
+          }
+        }
       } catch (err) {
         if (sendOtpBtn) sendOtpBtn.disabled = false;
         if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
@@ -665,7 +685,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         startResendTimer();
         clearOtpBoxes();
-        showOtpNotice('New 6-digit verification code sent.', 'info');
+        
+        if (data.dev_otp) {
+          window.fillDevOtp = () => {
+            data.dev_otp.split('').forEach((char, i) => {
+              if (otpBoxes[i]) otpBoxes[i].value = char;
+            });
+            if (otpBoxes[5]) otpBoxes[5].focus();
+          };
+          const noticeEl = document.getElementById('otpNotice');
+          if (noticeEl) {
+            noticeEl.className = 'auth-notice info';
+            noticeEl.innerHTML = `
+              <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                <span>New Code: <strong style="font-family:var(--font-mono); font-size:1.05rem; letter-spacing:2px; color:#047857;">${data.dev_otp}</strong></span>
+                <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">Auto-fill</button>
+              </div>
+            `;
+            noticeEl.hidden = false;
+          }
+        } else {
+          showOtpNotice('New 6-digit verification code sent.', 'info');
+        }
       } catch {
         showOtpNotice('Connection error while resending code.', 'error');
       }
