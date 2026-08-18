@@ -13,7 +13,7 @@
   <!-- Google Fonts: Outfit (Brand & Headings), Plus Jakarta Sans (Body & UI), JetBrains Mono (Codes) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -24,31 +24,36 @@
        ========================================================================== -->
   <main id="welcomeScreen" class="welcome-screen view-active" aria-label="Welcome to EXPIREDNOT">
     
-    <!-- Ambient Background Lighting & Faint Decorative Geometry -->
+    <!-- Multi-Color Ambient Lighting Background -->
     <div class="welcome-ambient-glow" aria-hidden="true"></div>
+    <div class="welcome-ambient-glow-secondary" aria-hidden="true"></div>
+    
     <div class="welcome-faint-line-art" aria-hidden="true">
       <svg width="100%" height="100%" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="200" cy="150" r="120" stroke="rgba(5, 150, 105, 0.05)" stroke-width="1.5" stroke-dasharray="4 4"/>
-        <path d="M1050 200C950 350 1100 500 1000 650" stroke="rgba(13, 148, 136, 0.06)" stroke-width="1.5"/>
-        <rect x="150" y="550" width="80" height="80" rx="20" stroke="rgba(5, 150, 105, 0.04)" stroke-width="1.5"/>
+        <circle cx="220" cy="160" r="140" stroke="rgba(5, 150, 105, 0.08)" stroke-width="1.5" stroke-dasharray="6 6"/>
+        <path d="M1080 180C960 340 1120 500 1000 680" stroke="rgba(13, 148, 136, 0.09)" stroke-width="2"/>
+        <rect x="140" y="560" width="90" height="90" rx="24" stroke="rgba(5, 150, 105, 0.07)" stroke-width="1.5"/>
+        <circle cx="950" cy="480" r="6" fill="rgba(14, 165, 233, 0.25)"/>
+        <circle cx="280" cy="620" r="8" fill="rgba(245, 158, 11, 0.2)"/>
       </svg>
     </div>
 
-    <div class="welcome-container anim-fade-card gradient-border-card">
+    <div class="welcome-container anim-fade-card gradient-border-card colorful-card-glow">
       
       <!-- Refined Namaste Icon Badge with Soft Glow -->
       <div class="namaste-badge anim-namaste" aria-hidden="true">
-        <svg class="namaste-icon" width="38" height="38" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2.75V15.25" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M9.5 5.5C8.75 7.15 8 9.3 8 11.5C8 13.7 8.75 15.2 9.8 16.3" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M14.5 5.5C15.25 7.15 16 9.3 16 11.5C16 13.7 15.25 15.2 14.2 16.3" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M7 8.75C6.35 10.15 6 11.75 6 13.3C6 16.1 7.35 18.3 9.2 19.25" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M17 8.75C17.65 10.15 18 11.75 18 13.3C18 16.1 16.65 18.3 14.8 19.25" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M9.25 21.25H14.75" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
+        <svg class="namaste-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2.75V15.25" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M9.5 5.5C8.75 7.15 8 9.3 8 11.5C8 13.7 8.75 15.2 9.8 16.3" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M14.5 5.5C15.25 7.15 16 9.3 16 11.5C16 13.7 15.25 15.2 14.2 16.3" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M7 8.75C6.35 10.15 6 11.75 6 13.3C6 16.1 7.35 18.3 9.2 19.25" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M17 8.75C17.65 10.15 18 11.75 18 13.3C18 16.1 16.65 18.3 14.8 19.25" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M9.25 21.25H14.75" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
           <defs>
             <linearGradient id="emeraldGradient" x1="6" y1="3" x2="18" y2="21" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#047857"/>
-              <stop offset="1" stop-color="#0d9488"/>
+              <stop stop-color="#059669"/>
+              <stop offset="0.5" stop-color="#0d9488"/>
+              <stop offset="1" stop-color="#0284c7"/>
             </linearGradient>
           </defs>
         </svg>
@@ -56,7 +61,7 @@
 
       <!-- Namaste Warm Heading -->
       <div class="welcome-heading-wrapper anim-step-3">
-        <h1 class="namaste-heading">Namaste</h1>
+        <h1 class="namaste-heading text-gradient-namaste">Namaste</h1>
       </div>
 
       <!-- Brand Reveal with Gradient Wordmark -->
@@ -139,9 +144,9 @@
         </div>
 
         <div class="benefits-grid onboard-step-3" role="list">
-          <div class="benefit-card" role="listitem">
+          <div class="benefit-card card-accent-green" role="listitem">
             <div class="benefit-icon-box track-icon-box" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 11l3 3L22 4"></path>
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
               </svg>
@@ -152,9 +157,9 @@
             </div>
           </div>
 
-          <div class="benefit-card" role="listitem">
+          <div class="benefit-card card-accent-amber" role="listitem">
             <div class="benefit-icon-box alert-icon-box" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
               </svg>
@@ -165,9 +170,9 @@
             </div>
           </div>
 
-          <div class="benefit-card" role="listitem">
+          <div class="benefit-card card-accent-blue" role="listitem">
             <div class="benefit-icon-box act-icon-box" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
@@ -223,7 +228,7 @@
     <section class="auth-section" aria-label="Sign In">
       <div class="auth-container">
         
-        <div class="auth-card gradient-border-card">
+        <div class="auth-card gradient-border-card colorful-card-glow">
           
           <div class="auth-header onboard-step-1">
             <div class="auth-header-top-row">
@@ -238,7 +243,7 @@
             <p class="auth-subtitle">Sign in to your pharmacy workspace.</p>
           </div>
 
-          <!-- Primary Option: Continue with Google -->
+          <!-- Primary Option: Continue with Google (Instant Clean OAuth) -->
           <button type="button" id="googleSignInBtn" class="btn-google prominent-google-btn onboard-step-2">
             <svg class="google-icon" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -406,7 +411,7 @@
       <div class="signup-grid-container single-col-signup">
         
         <section class="signup-wizard-section" aria-label="Registration Steps">
-          <div class="signup-wizard-card gradient-border-card">
+          <div class="signup-wizard-card gradient-border-card colorful-card-glow">
             
             <!-- Dynamic Step Progress Tracker -->
             <div class="wizard-progress-header" id="wizardProgressHeader" aria-label="Registration Progress">
@@ -546,14 +551,14 @@
             <div class="wizard-step-pane step-hidden" id="paneOtpVerify">
               <div class="step-header text-center">
                 <div class="otp-shield-badge">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     <polyline points="9 12 11 14 15 10"></polyline>
                   </svg>
                 </div>
                 <h3 class="step-heading">Verify your email</h3>
                 <p class="step-subtext">
-                  We've sent a 6-digit verification code to <strong id="maskedEmailDisplay">v***@gmail.com</strong>
+                  We've sent a 6-digit verification code to <strong id="maskedEmailDisplay" class="text-gradient-highlight">v***@gmail.com</strong>
                 </p>
               </div>
 
@@ -1046,31 +1051,31 @@
             </button>
           </div>
 
-          <!-- REAL 6 KPI METRICS (Strictly computed from real database records) -->
+          <!-- REAL 6 KPI METRICS WITH COLORFUL TOP ACCENTS -->
           <div class="kpi-grid-6">
             
             <!-- 1: Total Real Inventory Value -->
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-emerald">
               <div class="kpi-card-header">
                 <span class="kpi-label">Inventory Value</span>
                 <span class="kpi-icon-pill green">₹</span>
               </div>
-              <div class="kpi-metric-main" id="kpiTotalValue">₹0</div>
+              <div class="kpi-metric-main text-gradient-emerald" id="kpiTotalValue">₹0</div>
               <div class="kpi-subtext" id="kpiTotalCount">0 medicines • 0 batches</div>
             </div>
 
             <!-- 2: Active Medicines -->
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-teal">
               <div class="kpi-card-header">
                 <span class="kpi-label">Medicines in Stock</span>
                 <span class="kpi-icon-pill teal">📦</span>
               </div>
-              <div class="kpi-metric-main" id="kpiMedicinesCount">0</div>
+              <div class="kpi-metric-main text-gradient-teal" id="kpiMedicinesCount">0</div>
               <div class="kpi-subtext" id="kpiBatchesTotalCount">0 total active batches</div>
             </div>
 
             <!-- 3: Expiring Soon (< 60 Days) -->
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-amber">
               <div class="kpi-card-header">
                 <span class="kpi-label">Expiring Soon</span>
                 <span class="kpi-icon-pill amber">⏱️</span>
@@ -1080,7 +1085,7 @@
             </div>
 
             <!-- 4: At-Risk Value -->
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-rose">
               <div class="kpi-card-header">
                 <span class="kpi-label">At-Risk Value</span>
                 <span class="kpi-icon-pill red">⚠️</span>
@@ -1090,7 +1095,7 @@
             </div>
 
             <!-- 5: Expired Stock -->
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-crimson">
               <div class="kpi-card-header">
                 <span class="kpi-label">Expired Stock</span>
                 <span class="kpi-icon-pill red">🚫</span>
@@ -1100,7 +1105,7 @@
             </div>
 
             <!-- 6: Stock Cleared / Saved -->
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-mint">
               <div class="kpi-card-header">
                 <span class="kpi-label">Stock Cleared</span>
                 <span class="kpi-icon-pill green">✓</span>
@@ -1112,24 +1117,24 @@
           </div>
 
           <!-- BEAUTIFUL INTENTIONAL EMPTY STATE (When inventory = 0) -->
-          <div class="empty-inventory-banner gradient-border-card" id="emptyInventoryBanner">
+          <div class="empty-inventory-banner gradient-border-card colorful-card-glow" id="emptyInventoryBanner">
             <div class="empty-banner-inner">
               
               <!-- Clean Pharmacy Vector Graphic -->
               <div class="empty-vector-art" aria-hidden="true">
-                <svg width="90" height="90" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <rect x="8" y="16" width="80" height="68" rx="14" fill="#F0FDFA" stroke="#CCFBF1" stroke-width="2"/>
                   <rect x="20" y="28" width="56" height="12" rx="4" fill="#D1FAE5"/>
                   <rect x="20" y="46" width="24" height="10" rx="3" fill="#E2E8F0"/>
                   <rect x="48" y="46" width="28" height="10" rx="3" fill="#A7F3D0"/>
                   <rect x="20" y="62" width="34" height="10" rx="3" fill="#BAE6FD"/>
-                  <circle cx="70" cy="67" r="9" fill="#059669"/>
-                  <path d="M70 63V71M66 67H74" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+                  <circle cx="70" cy="67" r="10" fill="#059669"/>
+                  <path d="M70 62V72M65 67H75" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
                 </svg>
               </div>
 
               <div class="empty-banner-content">
-                <h3 class="empty-heading">Your inventory is waiting to be organized.</h3>
+                <h3 class="empty-heading text-gradient-brand">Your inventory is waiting to be organized.</h3>
                 <p class="empty-subtext">
                   Upload your first purchase bill and EXPIREDNOT will turn it into a structured medicine inventory with automated batch tracking and FEFO expiry guidance.
                 </p>
@@ -1215,12 +1220,12 @@
         <section class="content-panel panel-hidden" id="paneBills" aria-label="Upload Purchase Bills">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Turn your purchase bill into inventory.</h2>
+            <h2 class="section-heading text-gradient-brand">Turn your purchase bill into inventory.</h2>
             <p class="section-subtext">Upload a pharmacy invoice and EXPIREDNOT will extract the medicine, batch, quantity, price, and expiry information for you.</p>
           </div>
 
           <!-- Bill Dropzone Area -->
-          <div class="bill-dropzone-wrapper gradient-border-card">
+          <div class="bill-dropzone-wrapper gradient-border-card colorful-card-glow">
             
             <div class="dropzone-box" id="billDropzone">
               <input type="file" id="billFileInput" accept="image/*,application/pdf" class="file-input-hidden">
@@ -1428,7 +1433,7 @@
         <section class="content-panel panel-hidden" id="paneBatches" aria-label="Batches and FEFO">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Batch Management & FEFO Intelligence</h2>
+            <h2 class="section-heading text-gradient-brand">Batch Management & FEFO Intelligence</h2>
             <p class="section-subtext">First Expiry, First Out (FEFO) guarantees you always dispense the earliest-expiring batch to eliminate stock loss.</p>
           </div>
 
@@ -1468,7 +1473,7 @@
         <section class="content-panel panel-hidden" id="paneLowStock" aria-label="Low Stock Alerts">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Low Stock & Reorder Alerts</h2>
+            <h2 class="section-heading text-gradient-brand">Low Stock & Reorder Alerts</h2>
             <p class="section-subtext">Automatically detects medicines falling below your minimum inventory safety thresholds.</p>
           </div>
 
@@ -1493,7 +1498,7 @@
         <section class="content-panel panel-hidden" id="paneReturns" aria-label="Distributor Returns">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Stock Clearance & Distributor Returns</h2>
+            <h2 class="section-heading text-gradient-brand">Stock Clearance & Distributor Returns</h2>
             <p class="section-subtext">Automatically groups expiring batches by wholesale stockist to generate return debit notes before cutoff deadlines.</p>
           </div>
 
@@ -1521,7 +1526,7 @@
           
           <div class="section-intro-header-with-action">
             <div>
-              <h2 class="section-heading">Sales & Stock Movement Log</h2>
+              <h2 class="section-heading text-gradient-brand">Sales & Stock Movement Log</h2>
               <p class="section-subtext">Track all stock transactions: Purchased, Sold, Returned, Damaged, and Cleared.</p>
             </div>
             <button type="button" class="btn-primary" id="logMovementBtn">+ Log Sale / Dispense</button>
@@ -1562,7 +1567,7 @@
         <section class="content-panel panel-hidden" id="paneSuppliers" aria-label="Suppliers Directory">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Suppliers & Wholesale Stockists</h2>
+            <h2 class="section-heading text-gradient-brand">Suppliers & Wholesale Stockists</h2>
             <p class="section-subtext">Manage supplier contacts, purchase history, and return claim terms.</p>
           </div>
 
@@ -1582,7 +1587,7 @@
           
           <div class="section-intro-header-with-action">
             <div>
-              <h2 class="section-heading">Operating Expenses</h2>
+              <h2 class="section-heading text-gradient-brand">Operating Expenses</h2>
               <p class="section-subtext">Track monthly operating expenses (Rent, Electricity, Staff, Delivery, Packaging).</p>
             </div>
             <button type="button" class="btn-primary" id="addExpenseBtn">+ Add Expense</button>
@@ -1620,26 +1625,26 @@
         <section class="content-panel panel-hidden" id="paneAnalytics" aria-label="Analytics and Insights">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Analytics & Waste Prevention Insights</h2>
+            <h2 class="section-heading text-gradient-brand">Analytics & Waste Prevention Insights</h2>
             <p class="section-subtext">Real-time financial and inventory intelligence calculated exclusively from your stored records.</p>
           </div>
 
           <div class="kpi-grid">
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-mint">
               <div class="kpi-card-header"><span class="kpi-label">Loss Prevented</span><span class="kpi-icon-pill green">₹</span></div>
               <div class="kpi-metric-main text-success" id="anaLossPrevented">₹0</div>
               <div class="kpi-subtext">via timely returns & clearance</div>
             </div>
 
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-teal">
               <div class="kpi-card-header"><span class="kpi-label">Active Stock Value</span><span class="kpi-icon-pill teal">📦</span></div>
-              <div class="kpi-metric-main" id="anaActiveStock">₹0</div>
+              <div class="kpi-metric-main text-gradient-teal" id="anaActiveStock">₹0</div>
               <div class="kpi-subtext">in active inventory</div>
             </div>
 
-            <div class="kpi-card gradient-border-subtle">
+            <div class="kpi-card gradient-border-subtle kpi-accent-blue">
               <div class="kpi-card-header"><span class="kpi-label">Total Bills Ingested</span><span class="kpi-icon-pill blue">🧾</span></div>
-              <div class="kpi-metric-main" id="anaTotalBills">0</div>
+              <div class="kpi-metric-main text-gradient-blue" id="anaTotalBills">0</div>
               <div class="kpi-subtext">purchase invoices</div>
             </div>
           </div>
@@ -1652,7 +1657,7 @@
         <section class="content-panel panel-hidden" id="paneNotifications" aria-label="Notifications Feed">
           
           <div class="section-intro-header">
-            <h2 class="section-heading">Notifications & Alerts</h2>
+            <h2 class="section-heading text-gradient-brand">Notifications & Alerts</h2>
             <p class="section-subtext">Real-time alerts triggered exclusively when actual inventory events occur.</p>
           </div>
 
@@ -1888,77 +1893,64 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 4: GOOGLE OAUTH MODAL
+       MODAL 4: AUTHENTIC GOOGLE OAUTH SIGN-IN DIALOG (CLEAN & INTERACTIVE)
        ========================================================================== -->
   <div id="googleModal" class="google-modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="googleModalTitle">
     <div class="google-modal-backdrop" id="googleModalBackdrop"></div>
     
-    <div class="google-modal-card">
+    <div class="google-modal-card gradient-border-card colorful-card-glow">
       <div class="google-modal-header">
-        <svg class="google-logo" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg class="google-logo" width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
           <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
           <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
           <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
         </svg>
         <h3 class="google-title" id="googleModalTitle">Sign in with Google</h3>
-        <p class="google-subtitle">Choose an account to continue to <strong>EXPIREDNOT</strong></p>
+        <p class="google-subtitle">to continue to <strong class="text-gradient-brand">EXPIREDNOT</strong></p>
       </div>
 
-      <div class="google-accounts-list" id="googleAccountsList">
-        
-        <!-- Account 1: Registered User -->
-        <button type="button" class="google-account-item" data-name="Rajesh Sharma" data-email="rajesh.sharma@medicarechemists.com" data-shop="Medicare Chemist & Druggist" data-dl="DL-20B/94812">
-          <div class="google-avatar avatar-emerald">RS</div>
-          <div class="google-account-meta">
-            <span class="acc-name">Rajesh Sharma</span>
-            <span class="acc-email">rajesh.sharma@medicarechemists.com</span>
-          </div>
-          <span class="acc-badge">Registered</span>
-        </button>
-
-        <!-- Account 2: New Google Chemist User -->
-        <button type="button" class="google-account-item" data-name="Sunil Verma" data-email="sunil.chemist@gmail.com" data-new="true">
-          <div class="google-avatar avatar-blue">SV</div>
-          <div class="google-account-meta">
-            <span class="acc-name">Sunil Verma</span>
-            <span class="acc-email">sunil.chemist@gmail.com</span>
-          </div>
-          <span class="acc-badge new-user">New Setup</span>
-        </button>
-
-        <!-- Custom Google Account -->
-        <div class="custom-google-box">
-          <button type="button" class="google-account-item btn-another-acc" id="useAnotherGoogleBtn">
-            <div class="google-avatar avatar-gray">
+      <form id="googleAuthForm" class="google-form-body" novalidate>
+        <div class="form-group">
+          <label for="googleEmailInput" class="form-label">Email or phone</label>
+          <div class="input-wrapper">
+            <span class="input-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
               </svg>
-            </div>
-            <div class="google-account-meta">
-              <span class="acc-name">Use another Google account</span>
-            </div>
-          </button>
-
-          <div class="custom-google-input-row" id="customGoogleInputRow" hidden>
-            <input type="email" id="customGoogleEmail" class="form-input" placeholder="Enter your Google email">
-            <button type="button" id="submitCustomGoogleBtn" class="btn-primary">Continue</button>
+            </span>
+            <input 
+              type="email" 
+              id="googleEmailInput" 
+              class="form-input" 
+              placeholder="Enter your Google email" 
+              autocomplete="email" 
+              required
+            >
           </div>
+          <span class="field-error-msg" id="googleEmailError" hidden>Please enter a valid Google email address.</span>
         </div>
 
-      </div>
+        <div class="google-form-links">
+          <button type="button" class="google-text-btn" id="googleForgotEmailBtn">Forgot email?</button>
+        </div>
+
+        <p class="google-notice-text">
+          Google will securely share your verified name and email address with EXPIREDNOT.
+        </p>
+
+        <div class="google-actions-row">
+          <button type="button" class="btn-secondary" id="closeGoogleModalBtn">Cancel</button>
+          <button type="submit" class="btn-primary btn-google-next" id="googleNextBtn">
+            <span id="googleNextBtnText">Next →</span>
+          </button>
+        </div>
+      </form>
 
       <div class="google-loading-state" id="googleLoadingState" hidden>
         <div class="google-spinner"></div>
-        <span id="googleLoadingText">Connecting to Google...</span>
-      </div>
-
-      <div class="google-modal-footer">
-        <p class="google-policy-text">
-          To continue, Google will securely share your name and email address with EXPIREDNOT.
-        </p>
-        <button type="button" class="btn-secondary" id="closeGoogleModalBtn">Cancel</button>
+        <span id="googleLoadingText">Connecting to Google…</span>
       </div>
 
     </div>

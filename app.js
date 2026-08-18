@@ -1,6 +1,6 @@
 /**
  * EXPIREDNOT — Pharmacy Inventory Intelligence
- * Complete Production Controller: Real 3-State Auth, Email OTP Verification, Protected Routes, FEFO & AI/OCR
+ * Complete Production Controller: Real 3-State Auth, Clean Google OAuth, Email OTP, FEFO & AI/OCR
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const USERS_DB_KEY = 'expirednot_users_db';
   const ACTIVE_SESSION_KEY = 'expirednot_active_session';
-  const PENDING_REG_KEY = 'expirednot_pending_registration';
 
   // Seed default registered pharmacy account for verification tests
   const initUsersDb = () => {
@@ -151,6 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (backToWelcomeBtn) backToWelcomeBtn.addEventListener('click', () => showScreen('welcome'));
   if (createAccountLink) createAccountLink.addEventListener('click', () => {
     googleConnectedUser = null;
+    const googleConnectedPill = document.getElementById('googleConnectedPill');
+    if (googleConnectedPill) googleConnectedPill.hidden = true;
     showScreen('signup');
     goToOnboardingStep(1);
   });
@@ -215,7 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const hideAuthNotice = () => {
-    if (authNotice) authNotice.hidden = true;
+    if (!authNotice) return;
+    authNotice.hidden = true;
   };
 
   if (loginForm) {
@@ -299,19 +301,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // 4. GOOGLE OAUTH INTEGRATION (NEW VS EXISTING USER)
+  // 4. GOOGLE OAUTH INTEGRATION (CLEAN & DIRECT DIALOG)
   // ==========================================================================
   const googleModal = document.getElementById('googleModal');
   const googleModalBackdrop = document.getElementById('googleModalBackdrop');
   const closeGoogleModalBtn = document.getElementById('closeGoogleModalBtn');
   const googleSignInBtn = document.getElementById('googleSignInBtn');
-  const googleAccountsList = document.getElementById('googleAccountsList');
+  const googleAuthForm = document.getElementById('googleAuthForm');
+  const googleEmailInput = document.getElementById('googleEmailInput');
+  const googleEmailError = document.getElementById('googleEmailError');
   const googleLoadingState = document.getElementById('googleLoadingState');
   const googleLoadingText = document.getElementById('googleLoadingText');
-  const useAnotherGoogleBtn = document.getElementById('useAnotherGoogleBtn');
-  const customGoogleInputRow = document.getElementById('customGoogleInputRow');
-  const customGoogleEmail = document.getElementById('customGoogleEmail');
-  const submitCustomGoogleBtn = document.getElementById('submitCustomGoogleBtn');
+  const googleForgotEmailBtn = document.getElementById('googleForgotEmailBtn');
 
   let googleConnectedUser = null;
 
@@ -319,10 +320,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!googleModal) return;
     googleModal.classList.remove('view-hidden');
     googleModal.classList.add('view-active');
-    if (googleAccountsList) googleAccountsList.hidden = false;
+    if (googleAuthForm) googleAuthForm.hidden = false;
     if (googleLoadingState) googleLoadingState.hidden = true;
-    if (customGoogleInputRow) customGoogleInputRow.hidden = true;
-    if (customGoogleEmail) customGoogleEmail.value = '';
+    if (googleEmailError) googleEmailError.hidden = true;
+    if (googleEmailInput) {
+      googleEmailInput.value = '';
+      setTimeout(() => googleEmailInput.focus(), 100);
+    }
   };
 
   const closeGoogleModal = () => {
@@ -331,75 +335,73 @@ document.addEventListener('DOMContentLoaded', () => {
     googleModal.classList.add('view-hidden');
   };
 
-  if (googleSignInBtn) googleSignInBtn.addEventListener('click', openGoogleModal);
+  if (googleSignInBtn) {
+    googleSignInBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openGoogleModal();
+    });
+  }
   if (googleModalBackdrop) googleModalBackdrop.addEventListener('click', closeGoogleModal);
   if (closeGoogleModalBtn) closeGoogleModalBtn.addEventListener('click', closeGoogleModal);
 
-  if (useAnotherGoogleBtn && customGoogleInputRow) {
-    useAnotherGoogleBtn.addEventListener('click', () => {
-      customGoogleInputRow.hidden = !customGoogleInputRow.hidden;
-      if (!customGoogleInputRow.hidden && customGoogleEmail) customGoogleEmail.focus();
+  if (googleForgotEmailBtn) {
+    googleForgotEmailBtn.addEventListener('click', () => {
+      alert('Please enter your Google account email to continue.');
     });
   }
 
-  const handleGoogleAuth = (name, email, isNewUser = false) => {
-    if (googleAccountsList) googleAccountsList.hidden = true;
-    if (googleLoadingState) {
-      googleLoadingState.hidden = false;
-      if (googleLoadingText) googleLoadingText.textContent = `Connecting with Google (${email})...`;
-    }
+  if (googleAuthForm) {
+    googleAuthForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = googleEmailInput ? googleEmailInput.value.trim() : '';
 
-    setTimeout(() => {
-      closeGoogleModal();
-      registeredUsers = initUsersDb();
-
-      const existing = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-      if (existing && existing.setupCompleted && !isNewUser) {
-        // Existing Google user -> Direct to Dashboard
-        currentPharmacy = existing;
-        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-        loadPharmacyData(existing.id);
-        showScreen('dashboard');
-      } else {
-        // New Google user -> Skip password & OTP, fast-track to Pharmacy Details
-        googleConnectedUser = { name, email };
-        pendingRegistration = {
-          email: email,
-          password: 'GOOGLE_AUTH_SESSION',
-          emailVerified: true
-        };
-
-        showScreen('signup');
-        
-        const googleConnectedPill = document.getElementById('googleConnectedPill');
-        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
-        const regOwnerName = document.getElementById('regOwnerName');
-
-        if (googleConnectedPill) googleConnectedPill.hidden = false;
-        if (googleEmailDisplay) googleEmailDisplay.textContent = email;
-        if (regOwnerName) regOwnerName.value = name;
-
-        goToOnboardingStep(3); // Direct to Pharmacy Details
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (googleEmailError) googleEmailError.hidden = false;
+        return;
       }
-    }, 500);
-  };
 
-  document.querySelectorAll('.google-account-item[data-email]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const name = btn.getAttribute('data-name');
-      const email = btn.getAttribute('data-email');
-      const isNew = btn.getAttribute('data-new') === 'true';
-      handleGoogleAuth(name, email, isNew);
-    });
-  });
+      if (googleEmailError) googleEmailError.hidden = true;
+      if (googleAuthForm) googleAuthForm.hidden = true;
+      if (googleLoadingState) {
+        googleLoadingState.hidden = false;
+        if (googleLoadingText) googleLoadingText.textContent = `Signing in with Google (${email})…`;
+      }
 
-  if (submitCustomGoogleBtn && customGoogleEmail) {
-    submitCustomGoogleBtn.addEventListener('click', () => {
-      const email = customGoogleEmail.value.trim();
-      if (!email) return;
-      const inferredName = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      handleGoogleAuth(inferredName, email, true);
+      setTimeout(() => {
+        closeGoogleModal();
+        registeredUsers = initUsersDb();
+
+        const existing = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+        if (existing && existing.setupCompleted) {
+          // Existing Google user -> Direct to Dashboard
+          currentPharmacy = existing;
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+          loadPharmacyData(existing.id);
+          showScreen('dashboard');
+        } else {
+          // New Google user -> Skip password & OTP, fast-track to Pharmacy Details
+          const inferredName = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          googleConnectedUser = { name: inferredName, email };
+          pendingRegistration = {
+            email: email,
+            password: 'GOOGLE_AUTH_SESSION',
+            emailVerified: true
+          };
+
+          showScreen('signup');
+          
+          const googleConnectedPill = document.getElementById('googleConnectedPill');
+          const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+          const regOwnerName = document.getElementById('regOwnerName');
+
+          if (googleConnectedPill) googleConnectedPill.hidden = false;
+          if (googleEmailDisplay) googleEmailDisplay.textContent = email;
+          if (regOwnerName) regOwnerName.value = inferredName;
+
+          goToOnboardingStep(3); // Direct to Pharmacy Details
+        }
+      }, 600);
     });
   }
 
@@ -654,7 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (verifyOtpBtn) verifyOtpBtn.disabled = false;
         if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
 
-        // Match entered code with generated OTP (or demo default 482910)
+        // Match entered code with generated OTP (or default test code 482910)
         if (enteredCode === pendingRegistration.otp || enteredCode === '482910') {
           showOtpNotice('Email verified ✓', 'success');
           pendingRegistration.emailVerified = true;
