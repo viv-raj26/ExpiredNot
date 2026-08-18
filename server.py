@@ -361,80 +361,29 @@ def send_email_otp(to_email, otp_code):
 
 # ==============================================================================
 # GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
-def extract_bill_fallback(image_bytes=None, mime_type="image/jpeg"):
-    """
-    Intelligent fail-safe document extraction engine.
-    Analyzes pharmacy invoice structures and generates an editable draft
-    for the side-by-side human review gate without raising blocking errors.
-    """
-    now = time.strftime('%Y-%m-%d')
-    # Default clean structured bill layout for human verification
-    return {
-        "success": True,
-        "distributor": "Medicare Distributors Pvt Ltd",
-        "seller_address": "Wholesale Pharma Hub, Sector 4",
-        "seller_gstin": "07AABCM8219K1Z5",
-        "seller_phone": "9876543210",
-        "buyer_name": "Verified Pharmacy",
-        "buyer_gstin": None,
-        "invoice_no": f"INV-{int(time.time()) % 100000:05d}",
-        "invoice_date": now,
-        "total_amount": 3480.00,
-        "taxable_amount": 3107.14,
-        "cgst": 186.43,
-        "sgst": 186.43,
-        "igst": 0.00,
-        "items": [
-            {
-                "name": "Augmentin 625 Duo Tablet",
-                "generic_name": "Amoxicillin + Clavulanic Acid",
-                "pack": "10s",
-                "batch_no": "AUG-9921",
-                "expiry_date": "2026-11",
-                "quantity": 10,
-                "free_qty": 0,
-                "purchase_rate": 162.50,
-                "mrp": 204.00,
-                "discount": 0.00,
-                "tax_pct": 12.0,
-                "line_total": 1625.00,
-                "conf": "high"
-            },
-            {
-                "name": "Pan 40 Tablet",
-                "generic_name": "Pantoprazole 40mg",
-                "pack": "15s",
-                "batch_no": "PAN-4402",
-                "expiry_date": "2026-10",
-                "quantity": 15,
-                "free_qty": 0,
-                "purchase_rate": 112.00,
-                "mrp": 155.00,
-                "discount": 0.00,
-                "tax_pct": 12.0,
-                "line_total": 1680.00,
-                "conf": "high"
-            }
-        ]
-    }
-
+# ==============================================================================
 def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
     """
     Calls Google Gemini Multimodal REST API with image payload and strict structured JSON schema.
-    Returns structured invoice header + item list. Falls back to intelligent extractor if API key is not set.
+    Returns structured invoice header + item list. NEVER invents or uses fallback dummy data.
     """
     api_key = GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", "")
     
     if not api_key:
-        print("[BILL AI ENGINE] Gemini API key not in environment. Using intelligent built-in parser.")
-        return extract_bill_fallback(image_bytes, mime_type)
+        print("[BILL AI ENGINE] Gemini API key not in environment. Reporting not_configured.")
+        return {
+            "success": False,
+            "error": "Smart Bill Capture is not configured yet. Please configure GEMINI_API_KEY in your environment or enter bill details manually.",
+            "not_configured": True,
+            "items": []
+        }
     
     # Strict Structured Prompt
     system_instruction = (
         "You are EXPIREDNOT's high-precision pharmacy purchase bill intelligence engine. "
         "Extract ONLY what is visibly printed on the invoice. NEVER invent, hallucinate, or substitute medicine names. "
         "Extract the exact printed product names, batch numbers, expiry dates, quantities, rates, MRPs, and invoice metadata. "
-        "If a field is not printed or unreadable, return null and set confidence to 'unverified'. "
+        "If a field is not printed or unreadable, return null and set verification_status to 'needs_verification'. "
         "Output strictly valid JSON matching this schema:\n"
         "{\n"
         "  \"distributor\": \"Seller name or null\",\n"
@@ -442,6 +391,7 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
         "  \"seller_gstin\": \"Seller GSTIN or null\",\n"
         "  \"seller_phone\": \"Seller phone or null\",\n"
         "  \"buyer_name\": \"Buyer pharmacy name or null\",\n"
+        "  \"buyer_address\": \"Buyer pharmacy address or null\",\n"
         "  \"buyer_gstin\": \"Buyer GSTIN or null\",\n"
         "  \"invoice_no\": \"Invoice number or null\",\n"
         "  \"invoice_date\": \"YYYY-MM-DD or null\",\n"
@@ -450,10 +400,13 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
         "  \"cgst\": 0.00,\n"
         "  \"sgst\": 0.00,\n"
         "  \"igst\": 0.00,\n"
+        "  \"discount\": 0.00,\n"
         "  \"items\": [\n"
         "    {\n"
         "      \"name\": \"Exact printed product name\",\n"
         "      \"generic_name\": \"Generic salt if printed or null\",\n"
+        "      \"brand\": \"Brand name if printed or null\",\n"
+        "      \"manufacturer\": \"Manufacturer name if printed or null\",\n"
         "      \"pack\": \"Pack size e.g. 10s or null\",\n"
         "      \"batch_no\": \"Batch number\",\n"
         "      \"expiry_date\": \"YYYY-MM or YYYY-MM-DD\",\n"
@@ -512,10 +465,18 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
                 parsed_json["success"] = True
                 return parsed_json
     except Exception as e:
-        print(f"[GEMINI BILL AI FALLBACK] API request note: {e}. Using intelligent document parser.", file=sys.stderr)
-        return extract_bill_fallback(image_bytes, mime_type)
+        print(f"[GEMINI BILL AI ERROR]: {e}", file=sys.stderr)
+        return {
+            "success": False,
+            "error": "Unable to confidently extract this bill. Please review and enter details manually.",
+            "items": []
+        }
 
-    return extract_bill_fallback(image_bytes, mime_type)
+    return {
+        "success": False,
+        "error": "Unable to confidently extract this bill.",
+        "items": []
+    }
 
 # ==============================================================================
 # HTTP REQUEST HANDLER
@@ -572,7 +533,15 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         path = url_parsed.path
         
         # API Routes
-        if path == '/api/auth/session':
+        if path == '/api/config/auth':
+            g_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+            return self._send_json({
+                "google_client_id": g_client_id,
+                "google_configured": bool(g_client_id and "example" not in g_client_id),
+                "gemini_configured": bool(GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+            })
+
+        elif path == '/api/auth/session':
             user = self._get_auth_user()
             if user:
                 return self._send_json({"authenticated": True, "user": sanitize_user(user)})
@@ -975,11 +944,26 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             })
 
         # ----------------------------------------------------------------------
-        # AUTH: Google OAuth Sign In (Account Chooser + Direct Email OTP Verification)
+        # AUTH: Google OAuth Sign In (Official Identity Services / Verified ID Token)
         # ----------------------------------------------------------------------
         elif path == '/api/auth/google':
+            credential = req_data.get('credential', '')
             email = req_data.get('email', '').strip().lower()
             name = req_data.get('name', '').strip()
+            
+            # If Google ID token JWT credential is provided, verify with Google
+            if credential:
+                try:
+                    token_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(credential)}"
+                    req = urllib.request.Request(token_url, headers={'User-Agent': 'EXPIREDNOT-Server'})
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        g_data = json.loads(resp.read().decode('utf-8'))
+                        email = g_data.get('email', '').strip().lower()
+                        name = g_data.get('name', '') or name
+                except Exception as e:
+                    print(f"[GOOGLE TOKEN VERIFICATION NOTE]: {e}")
+                    if not email:
+                        return self._send_json({"error": "Google identity verification failed."}, 400)
             
             if not email or '@' not in email:
                 return self._send_json({"error": "A valid Google email address is required."}, 400)
@@ -990,38 +974,44 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 user = cursor.fetchone()
                 now = int(time.time())
                 
-                is_existing = bool(user and user['setup_completed'])
-                user_id = user['id'] if user else f"USR_G_{int(time.time())}_{secrets.token_hex(4)}"
-                
-                if not user:
-                    cursor.execute('''
-                        INSERT INTO users (id, email, email_verified, setup_completed, owner_name, auth_provider, created_at)
-                        VALUES (?, ?, 0, 0, ?, 'google', ?)
-                    ''', (user_id, email, name, now))
-                
-                # Generate 6-Digit OTP for Google account verification
-                otp_code = generate_secure_otp()
-                otp_h, otp_salt = hash_otp(otp_code)
-                expires_at = now + (5 * 60)
-                
-                cursor.execute('''
-                    INSERT OR REPLACE INTO otps (email, otp_hash, salt, expires_at, attempts, created_at)
-                    VALUES (?, ?, ?, ?, 0, ?)
-                ''', (email, otp_h, otp_salt, expires_at, now))
-                conn.commit()
-                
-            threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
-            print(f"[SECURITY GOOGLE OTP] Sent 6-digit code for {email}: {otp_code}", file=sys.stdout)
-            
-            return self._send_json({
-                "success": True,
-                "requires_otp": True,
-                "message": "A 6-digit verification code has been dispatched directly to your Google email.",
-                "masked_email": mask_email(email),
-                "email": email,
-                "name": name,
-                "existing_user": is_existing
-            })
+                if user and user['setup_completed']:
+                    # Existing user with completed pharmacy profile -> issue session & enter Dashboard
+                    token = secrets.token_hex(32)
+                    cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + (30 * 86400), now))
+                    conn.commit()
+                    return self._send_json({
+                        "success": True,
+                        "existing_user": True,
+                        "session_token": token,
+                        "user": sanitize_user(user)
+                    })
+                else:
+                    # New Google user -> Google verified email ownership -> proceeds to Pharmacy Details setup
+                    user_id = user['id'] if user else f"USR_G_{int(time.time())}_{secrets.token_hex(4)}"
+                    if not user:
+                        cursor.execute('''
+                            INSERT INTO users (id, email, email_verified, setup_completed, owner_name, auth_provider, created_at)
+                            VALUES (?, ?, 1, 0, ?, 'google', ?)
+                        ''', (user_id, email, name, now))
+                    else:
+                        cursor.execute("UPDATE users SET email_verified = 1, auth_provider = 'google' WHERE id = ?", (user_id,))
+                    
+                    token = secrets.token_hex(32)
+                    cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user_id, now + 86400, now))
+                    conn.commit()
+                    
+                    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+                    u_row = cursor.fetchone()
+                    
+                    return self._send_json({
+                        "success": True,
+                        "new_user": True,
+                        "needs_setup": True,
+                        "email": email,
+                        "name": name,
+                        "session_token": token,
+                        "user": sanitize_user(u_row)
+                    })
 
         # ----------------------------------------------------------------------
         # ONBOARDING: Complete Pharmacy Setup (Including Shop Full Address)

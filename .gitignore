@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.db
+.env
+.env.local
 uploads/bills/*
 !uploads/bills/.gitkeep
 .DS_Store

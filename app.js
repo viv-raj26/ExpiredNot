@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // 4. OFFICIAL GOOGLE OAUTH WITH ACCOUNT CHOOSER
+  // 4. OFFICIAL GOOGLE OAUTH WITH GOOGLE IDENTITY SERVICES
   // ==========================================================================
   const googleModal = document.getElementById('googleModal');
   const googleModalBackdrop = document.getElementById('googleModalBackdrop');
@@ -375,19 +375,79 @@ document.addEventListener('DOMContentLoaded', () => {
   const googleForgotEmailBtn = document.getElementById('googleForgotEmailBtn');
 
   let googleConnectedUser = null;
+  let serverGoogleClientId = '';
+  let isGoogleConfigured = false;
+  let isGeminiConfigured = false;
+
+  const fetchAuthConfig = async () => {
+    try {
+      const res = await fetch('/api/config/auth');
+      const data = await res.json();
+      serverGoogleClientId = data.google_client_id || '';
+      isGoogleConfigured = data.google_configured || false;
+      isGeminiConfigured = data.gemini_configured || false;
+
+      if (isGoogleConfigured && window.google && window.google.accounts && window.google.accounts.id) {
+        google.accounts.id.initialize({
+          client_id: serverGoogleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false
+        });
+      }
+    } catch {}
+  };
+
+  const handleGoogleCredentialResponse = async (response) => {
+    if (!response || !response.credential) return;
+    try {
+      showAuthNotice('Authenticating with Google…', 'info');
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showAuthNotice(data.error || 'Google authentication failed.', 'error');
+        return;
+      }
+
+      sessionToken = data.session_token;
+      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+      currentPharmacy = data.user;
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+      if (data.existing_user) {
+        showAuthNotice('Welcome back! Logging in…', 'success');
+        setTimeout(async () => {
+          await loadPharmacyData(currentPharmacy.id);
+          showScreen('dashboard');
+        }, 300);
+      } else {
+        // New Google user -> Advance to Pharmacy Setup (email already verified by Google)
+        pendingRegistration.email = data.email || data.user.email;
+        pendingRegistration.isGoogle = true;
+        const googleConnectedPill = document.getElementById('googleConnectedPill');
+        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+        const regOwnerName = document.getElementById('regOwnerName');
+        if (googleConnectedPill) googleConnectedPill.hidden = false;
+        if (googleEmailDisplay) googleEmailDisplay.textContent = pendingRegistration.email;
+        if (regOwnerName && data.name) regOwnerName.value = data.name;
+
+        showScreen('signup');
+        goToOnboardingStep(3); // Direct to Pharmacy Details
+      }
+    } catch (e) {
+      showAuthNotice('Unable to connect to server. Please try again.', 'error');
+    }
+  };
 
   const openGoogleModal = () => {
-    // Attempt Official GIS prompt if configured
-    if (window.google && window.google.accounts && window.google.accounts.id) {
+    // If official Google Client ID is configured in .env, prompt official GIS
+    if (isGoogleConfigured && window.google && window.google.accounts && window.google.accounts.id) {
       try {
-        google.accounts.id.initialize({
-          client_id: "7294829104-example.apps.googleusercontent.com",
-          prompt_parent_id: "googleSignInBtn",
-          callback: (response) => {
-            handleGoogleCredentialResponse(response);
-          }
-        });
         google.accounts.id.prompt();
+        return;
       } catch {}
     }
 
@@ -429,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (googleAuthForm) googleAuthForm.hidden = true;
     if (googleLoadingState) {
       googleLoadingState.hidden = false;
-      if (googleLoadingText) googleLoadingText.textContent = `Dispatching verification code to ${email}…`;
+      if (googleLoadingText) googleLoadingText.textContent = `Connecting ${email} with Google…`;
     }
 
     try {
@@ -447,23 +507,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      pendingRegistration.email = email;
-      pendingRegistration.name = name;
-      pendingRegistration.isGoogle = true;
+      sessionToken = data.session_token;
+      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+      currentPharmacy = data.user;
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
 
-      const maskedDisplay = document.getElementById('maskedEmailDisplay');
-      if (maskedDisplay) maskedDisplay.textContent = data.masked_email || maskEmail(email);
+      if (data.existing_user) {
+        showAuthNotice('Welcome back! Logging in…', 'success');
+        setTimeout(async () => {
+          await loadPharmacyData(currentPharmacy.id);
+          showScreen('dashboard');
+        }, 300);
+      } else {
+        // New Google user -> Advance to Pharmacy Setup (email verified by Google)
+        pendingRegistration.email = email;
+        pendingRegistration.name = name;
+        pendingRegistration.isGoogle = true;
 
-      startResendTimer();
-      showScreen('signup');
-      goToOnboardingStep(2);
-      clearOtpBoxes();
+        const googleConnectedPill = document.getElementById('googleConnectedPill');
+        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+        const regOwnerName = document.getElementById('regOwnerName');
+        if (googleConnectedPill) googleConnectedPill.hidden = false;
+        if (googleEmailDisplay) googleEmailDisplay.textContent = email;
+        if (regOwnerName && name) regOwnerName.value = name;
 
-      const noticeEl = document.getElementById('otpNotice');
-      if (noticeEl) {
-        noticeEl.className = 'auth-notice info';
-        noticeEl.textContent = `A 6-digit verification code has been dispatched directly to your Google email: ${data.masked_email || maskEmail(email)}. Check your inbox.`;
-        noticeEl.hidden = false;
+        showScreen('signup');
+        goToOnboardingStep(3); // Direct to Pharmacy Details
       }
     } catch (e) {
       closeGoogleModal();
@@ -2352,22 +2421,53 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // 11. INITIAL PROTECTED SESSION CHECK
+  // 11. INITIAL PROTECTED SESSION CHECK & AUTH CONFIG BOOT
   // ==========================================================================
-  const activeSessionRaw = sessionStorage.getItem(ACTIVE_SESSION_KEY) || localStorage.getItem(ACTIVE_SESSION_KEY);
-  if (activeSessionRaw) {
-    try {
-      currentPharmacy = JSON.parse(activeSessionRaw);
-      if (currentPharmacy.setup_completed || currentPharmacy.setupCompleted) {
-        loadPharmacyData(currentPharmacy.id);
-        showScreen('dashboard');
-      } else {
+  fetchAuthConfig();
+
+  const initSessionCheck = async () => {
+    if (sessionToken) {
+      try {
+        const res = await fetch('/api/auth/session', {
+          headers: { 'Authorization': `Bearer ${sessionToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated && data.user) {
+            currentPharmacy = data.user;
+            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+            if (currentPharmacy.setup_completed || currentPharmacy.setupCompleted) {
+              await loadPharmacyData(currentPharmacy.id);
+              showScreen('dashboard');
+              return;
+            } else {
+              showScreen('signup');
+              goToOnboardingStep(3);
+              return;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const activeSessionRaw = sessionStorage.getItem(ACTIVE_SESSION_KEY) || localStorage.getItem(ACTIVE_SESSION_KEY);
+    if (activeSessionRaw) {
+      try {
+        currentPharmacy = JSON.parse(activeSessionRaw);
+        if (currentPharmacy.setup_completed || currentPharmacy.setupCompleted) {
+          loadPharmacyData(currentPharmacy.id);
+          showScreen('dashboard');
+        } else {
+          showScreen('welcome');
+        }
+      } catch {
         showScreen('welcome');
       }
-    } catch {
+    } else {
       showScreen('welcome');
     }
-  } else {
-    showScreen('welcome');
-  }
+  };
+
+  initSessionCheck();
 });
