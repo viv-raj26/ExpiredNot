@@ -300,6 +300,59 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const loginWithOtpBtn = document.getElementById('loginWithOtpBtn');
+  if (loginWithOtpBtn) {
+    loginWithOtpBtn.addEventListener('click', async () => {
+      hideAuthNotice();
+      const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim().toLowerCase() : '';
+      if (!identifier || !identifier.includes('@')) {
+        showAuthNotice('Please enter your email address above to receive a login code.', 'error');
+        if (loginIdentifierInput) loginIdentifierInput.focus();
+        return;
+      }
+
+      loginWithOtpBtn.disabled = true;
+      loginWithOtpBtn.textContent = 'Sending OTP code…';
+
+      try {
+        const res = await fetch('/api/auth/send-login-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: identifier })
+        });
+        const data = await res.json();
+
+        loginWithOtpBtn.disabled = false;
+        loginWithOtpBtn.textContent = '📧 Sign in with Email OTP';
+
+        if (!res.ok) {
+          showAuthNotice(data.error || 'Failed to send login code.', 'error');
+          return;
+        }
+
+        pendingRegistration.email = identifier;
+        const maskedDisplay = document.getElementById('maskedEmailDisplay');
+        if (maskedDisplay) maskedDisplay.textContent = data.masked_email || maskEmail(identifier);
+
+        startResendTimer();
+        showScreen('signup');
+        goToOnboardingStep(2);
+        clearOtpBoxes();
+
+        const noticeEl = document.getElementById('otpNotice');
+        if (noticeEl) {
+          noticeEl.className = 'auth-notice info';
+          noticeEl.textContent = `A 6-digit login code has been sent to ${data.masked_email || maskEmail(identifier)}. Check your inbox.`;
+          noticeEl.hidden = false;
+        }
+      } catch (e) {
+        loginWithOtpBtn.disabled = false;
+        loginWithOtpBtn.textContent = '📧 Sign in with Email OTP';
+        showAuthNotice('Unable to connect to server. Please try again.', 'error');
+      }
+    });
+  }
+
   if (forgotPasswordLink) {
     forgotPasswordLink.addEventListener('click', (e) => {
       e.preventDefault();
@@ -574,60 +627,16 @@ document.addEventListener('DOMContentLoaded', () => {
         goToOnboardingStep(2);
         clearOtpBoxes();
 
-        if (data.dev_otp) {
-          window.fillDevOtp = () => {
-            data.dev_otp.split('').forEach((char, i) => {
-              if (otpBoxes[i]) otpBoxes[i].value = char;
-            });
-            if (verifyOtpBtn) setTimeout(() => verifyOtpBtn.click(), 150);
-          };
-          const noticeEl = document.getElementById('otpNotice');
-          if (noticeEl) {
-            noticeEl.className = 'auth-notice info';
-            noticeEl.innerHTML = `
-              <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-                <span>Verification Code: <strong style="font-family:var(--font-mono); font-size:1.15rem; letter-spacing:2px; color:#047857;">${data.dev_otp}</strong></span>
-                <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">⚡ Auto-fill & Verify</button>
-              </div>
-            `;
-            noticeEl.hidden = false;
-          }
+        const noticeEl = document.getElementById('otpNotice');
+        if (noticeEl) {
+          noticeEl.className = 'auth-notice info';
+          noticeEl.textContent = `A 6-digit code has been dispatched to ${data.masked_email || maskEmail(email)}. Please check your inbox.`;
+          noticeEl.hidden = false;
         }
       } catch (err) {
         if (sendOtpBtn) sendOtpBtn.disabled = false;
         if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
-        
-        // Client-side fallback for standalone / file:// mode
-        const localCode = String(Math.floor(100000 + Math.random() * 900000));
-        pendingRegistration.email = email;
-        pendingRegistration.password = pass;
-        pendingRegistration._localOtp = localCode;
-        
-        const maskedDisplay = document.getElementById('maskedEmailDisplay');
-        if (maskedDisplay) maskedDisplay.textContent = maskEmail(email);
-
-        startResendTimer();
-        goToOnboardingStep(2);
-        clearOtpBoxes();
-
-        window.fillDevOtp = () => {
-          localCode.split('').forEach((char, i) => {
-            if (otpBoxes[i]) otpBoxes[i].value = char;
-          });
-          if (verifyOtpBtn) setTimeout(() => verifyOtpBtn.click(), 150);
-        };
-
-        const noticeEl = document.getElementById('otpNotice');
-        if (noticeEl) {
-          noticeEl.className = 'auth-notice info';
-          noticeEl.innerHTML = `
-            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-              <span>Verification Code: <strong style="font-family:var(--font-mono); font-size:1.15rem; letter-spacing:2px; color:#047857;">${localCode}</strong></span>
-              <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">⚡ Auto-fill & Verify</button>
-            </div>
-          `;
-          noticeEl.hidden = false;
-        }
+        showSignupNotice('Unable to connect to server. Please ensure local server is running.', 'error');
       }
     });
   }
@@ -716,28 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         startResendTimer();
         clearOtpBoxes();
-        
-        if (data.dev_otp) {
-          window.fillDevOtp = () => {
-            data.dev_otp.split('').forEach((char, i) => {
-              if (otpBoxes[i]) otpBoxes[i].value = char;
-            });
-            if (otpBoxes[5]) otpBoxes[5].focus();
-          };
-          const noticeEl = document.getElementById('otpNotice');
-          if (noticeEl) {
-            noticeEl.className = 'auth-notice info';
-            noticeEl.innerHTML = `
-              <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-                <span>New Code: <strong style="font-family:var(--font-mono); font-size:1.05rem; letter-spacing:2px; color:#047857;">${data.dev_otp}</strong></span>
-                <button type="button" class="auth-notice-btn" onclick="window.fillDevOtp()">Auto-fill</button>
-              </div>
-            `;
-            noticeEl.hidden = false;
-          }
-        } else {
-          showOtpNotice('New 6-digit verification code sent.', 'info');
-        }
+        showOtpNotice('A new verification code has been dispatched to your email.', 'info');
       } catch {
         showOtpNotice('Connection error while resending code.', 'error');
       }

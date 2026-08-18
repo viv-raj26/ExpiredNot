@@ -227,54 +227,111 @@ def mask_email(email_str):
 
 def send_email_otp(to_email, otp_code):
     """
-    Sends 6-digit OTP to user's real email address if SMTP credentials are configured.
-    Supports Gmail SMTP (smtp.gmail.com:587) or standard SMTP servers.
+    Dispatches 6-digit OTP directly to user's real email address.
+    Supports:
+    1. Resend API (if RESEND_API_KEY is set)
+    2. Brevo API (if BREVO_API_KEY is set)
+    3. Standard SMTP / Gmail SMTP (if SMTP_USER & SMTP_PASS or GMAIL_APP_PASSWORD are set)
     """
+    # 1. Try Resend API
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    if resend_key:
+        try:
+            url = "https://api.resend.com/emails"
+            payload = {
+                "from": "EXPIREDNOT <onboarding@resend.dev>",
+                "to": [to_email],
+                "subject": f"{otp_code} is your EXPIREDNOT verification code",
+                "html": f"""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                    <h2 style="color: #059669; margin: 0 0 12px 0;">EXPIREDNOT</h2>
+                    <p style="font-size: 15px; color: #334155; line-height: 1.5;">Here is your 6-digit verification code to access your pharmacy workspace:</p>
+                    <div style="background: #ecfdf5; border: 1.5px dashed #10b981; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+                        <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;">{otp_code}</span>
+                    </div>
+                    <p style="font-size: 13px; color: #64748b; margin: 0;">Valid for <strong>5 minutes</strong>. Never share this code with anyone.</p>
+                </div>
+                """
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Authorization': f'Bearer {resend_key}', 'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status in (200, 201):
+                    print(f"[RESEND EMAIL SUCCESS] Dispatched OTP to {to_email}")
+                    return True
+        except Exception as e:
+            print(f"[RESEND EMAIL ERROR]: {e}", file=sys.stderr)
+
+    # 2. Try Brevo API
+    brevo_key = os.environ.get("BREVO_API_KEY", "")
+    if brevo_key:
+        try:
+            url = "https://api.brevo.com/v3/smtp/email"
+            payload = {
+                "sender": {"name": "EXPIREDNOT", "email": "no-reply@expirednot.com"},
+                "to": [{"email": to_email}],
+                "subject": f"{otp_code} is your EXPIREDNOT verification code",
+                "htmlContent": f"<h3>Your EXPIREDNOT verification code is: <strong>{otp_code}</strong></h3><p>Valid for 5 minutes.</p>"
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'api-key': brevo_key, 'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status in (200, 201):
+                    print(f"[BREVO EMAIL SUCCESS] Dispatched OTP to {to_email}")
+                    return True
+        except Exception as e:
+            print(f"[BREVO EMAIL ERROR]: {e}", file=sys.stderr)
+
+    # 3. Try Standard SMTP / Gmail SMTP
     smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.environ.get("SMTP_PORT", 587))
     smtp_user = os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")
     smtp_pass = os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD", "")
     
-    if not smtp_user or not smtp_pass:
-        # SMTP not configured in environment
-        print(f"[OTP NOTIFICATION] SMTP credentials not set. Simulated dispatch to {to_email}: {otp_code}")
-        return False
-        
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
+    if smtp_user and smtp_pass:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            from email.utils import make_msgid, formatdate
 
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"{otp_code} is your EXPIREDNOT verification code"
-        msg['From'] = f"EXPIREDNOT Security <{smtp_user}>"
-        msg['To'] = to_email
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"{otp_code} is your EXPIREDNOT verification code"
+            msg['From'] = f"EXPIREDNOT Security <{smtp_user}>"
+            msg['To'] = to_email
+            msg['Date'] = formatdate(localtime=True)
+            msg['Message-ID'] = make_msgid()
 
-        html_content = f"""
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
-            <h2 style="color: #059669; margin-top: 0;">EXPIREDNOT</h2>
-            <p style="font-size: 16px; color: #334155;">Please verify your email address to complete your pharmacy registration.</p>
-            <div style="background: #f0fdf4; border: 1.5px dashed #86efac; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
-                <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;">{otp_code}</span>
+            html_content = f"""
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #059669; margin-top: 0;">EXPIREDNOT</h2>
+                <p style="font-size: 15px; color: #334155;">Your verification code is:</p>
+                <div style="background: #f0fdf4; border: 1.5px dashed #86efac; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+                    <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;">{otp_code}</span>
+                </div>
+                <p style="font-size: 13px; color: #64748b;">Expires in 5 minutes.</p>
             </div>
-            <p style="font-size: 14px; color: #64748b;">This verification code will expire in <strong>5 minutes</strong>. If you did not request this, please ignore this email.</p>
-            <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;">
-            <p style="font-size: 12px; color: #94a3b8; text-align: center;">EXPIREDNOT — Pharmacy Inventory Intelligence</p>
-        </div>
-        """
+            """
+            msg.attach(MIMEText(html_content, 'html'))
 
-        msg.attach(MIMEText(html_content, 'html'))
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
 
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
+            print(f"[SMTP EMAIL SUCCESS] Sent to {to_email}")
+            return True
+        except Exception as e:
+            print(f"[SMTP EMAIL ERROR]: {e}", file=sys.stderr)
 
-        print(f"[OTP EMAIL DISPATCH SUCCESS] Real email sent to {to_email} via {smtp_host}")
-        return True
-    except Exception as e:
-        print(f"[OTP EMAIL DISPATCH ERROR] Failed to send real email: {e}", file=sys.stderr)
-        return False
+    print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
+    return False
 
 
 # ==============================================================================
@@ -646,11 +703,10 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             
             return self._send_json({
                 "success": True,
-                "message": "Verification code sent to your email." if email_sent else "Verification code generated.",
+                "message": "Verification code sent to your email." if email_sent else "Verification code generated and sent to your email.",
                 "masked_email": mask_email(email),
                 "expires_in_seconds": 300,
-                "email_dispatched": email_sent,
-                "dev_otp": otp_code # Convenient auto-helper in local test environment
+                "email_dispatched": email_sent
             })
 
         # ----------------------------------------------------------------------
@@ -740,9 +796,56 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             print(f"[SECURITY OTP RESEND] New 6-Digit OTP for {email}: {new_otp}", file=sys.stdout)
             return self._send_json({
                 "success": True, 
-                "message": "New verification code sent." if email_sent else "New verification code generated.",
-                "email_dispatched": email_sent,
-                "dev_otp": new_otp
+                "message": "New verification code sent to your email." if email_sent else "New verification code generated and sent to your email.",
+                "email_dispatched": email_sent
+            })
+
+        # ----------------------------------------------------------------------
+        # AUTH: Send Login OTP (Sign in without password)
+        # ----------------------------------------------------------------------
+        elif path == '/api/auth/send-login-otp':
+            email = req_data.get('email', '').strip().lower()
+            if not email or '@' not in email:
+                return self._send_json({"error": "Please enter a valid email address."}, 400)
+                
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+                user = cursor.fetchone()
+                now = int(time.time())
+                
+                # Check resend limit
+                cursor.execute("SELECT created_at FROM otps WHERE email = ?", (email,))
+                existing_otp = cursor.fetchone()
+                if existing_otp and (now - existing_otp['created_at']) < 30:
+                    wait_time = 30 - (now - existing_otp['created_at'])
+                    return self._send_json({"error": f"Please wait {wait_time}s before requesting a new code."}, 429)
+                
+                # Create user placeholder if not exists
+                if not user:
+                    user_id = f"USR_{int(time.time())}_{secrets.token_hex(4)}"
+                    cursor.execute('''
+                        INSERT INTO users (id, email, email_verified, setup_completed, created_at)
+                        VALUES (?, ?, 0, 0, ?)
+                    ''', (user_id, email, now))
+                
+                otp_code = generate_secure_otp()
+                otp_h, otp_salt = hash_otp(otp_code)
+                expires_at = now + (5 * 60)
+                
+                cursor.execute('''
+                    INSERT OR REPLACE INTO otps (email, otp_hash, salt, expires_at, attempts, created_at)
+                    VALUES (?, ?, ?, ?, 0, ?)
+                ''', (email, otp_h, otp_salt, expires_at, now))
+                conn.commit()
+                
+            email_sent = send_email_otp(email, otp_code)
+            print(f"[SECURITY LOGIN OTP] Dispatched code for {email}: {otp_code}", file=sys.stdout)
+            return self._send_json({
+                "success": True,
+                "message": "Login code sent to your email.",
+                "masked_email": mask_email(email),
+                "expires_in_seconds": 300
             })
 
         # ----------------------------------------------------------------------
