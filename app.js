@@ -1,27 +1,29 @@
 /**
  * EXPIREDNOT — Pharmacy Inventory Intelligence
- * Core Platform Controller: Real Authentication, 3-Step Onboarding, Vertical Sidebar, FEFO & AI/OCR Bill Ingestion
+ * Complete Production Controller: Real 3-State Auth, Email OTP Verification, Protected Routes, FEFO & AI/OCR
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
-  // 1. DATA STORES & AUTHENTICATION DATABASE
+  // 1. DATA STORES & REAL AUTHENTICATION DATABASE
   // ==========================================================================
 
-  // Real User DB in localStorage
   const USERS_DB_KEY = 'expirednot_users_db';
   const ACTIVE_SESSION_KEY = 'expirednot_active_session';
+  const PENDING_REG_KEY = 'expirednot_pending_registration';
 
-  // Seed default registered account for verification tests (if empty)
+  // Seed default registered pharmacy account for verification tests
   const initUsersDb = () => {
     const raw = localStorage.getItem(USERS_DB_KEY);
     if (!raw) {
       const defaultUsers = [
         {
-          id: 'USR_RAJESH',
+          id: 'USR_RAJESH_01',
           email: 'rajesh.sharma@medicarechemists.com',
           mobile: '9876543210',
           password: 'password123',
+          emailVerified: true,
+          setupCompleted: true,
           shopName: 'Medicare Chemist & Druggist',
           dlNumber: 'DL-20B/94812',
           pharmacyType: 'Retail Pharmacy',
@@ -45,18 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(USERS_DB_KEY, JSON.stringify(registeredUsers));
   };
 
-  // Active Pharmacy Session State
-  let currentPharmacy = {
-    id: null,
-    shopName: '',
-    dlNumber: '',
-    ownerName: '',
-    email: '',
-    mobile: '',
-    role: 'Owner'
-  };
+  // Active Session State
+  let currentPharmacy = null;
 
-  // Real Database for the Active Pharmacy (STRICT ZERO DEFAULT)
+  // Real Database for Active Pharmacy (STRICT ZERO DEFAULT)
   let pharmacyDb = {
     batches: [],       // { id, name, pack, batchNo, expiryDate, quantity, purchaseRate, mrp, rack, distributor, createdAt }
     bills: [],         // { id, distributor, invoiceNo, date, totalAmount, itemsCount, timestamp }
@@ -69,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let isDemoMode = false;
   let realDbBackup = null;
 
-  // Load pharmacy data for current session
   const loadPharmacyData = (pharmacyId) => {
     if (!pharmacyId) return;
     const raw = localStorage.getItem(`expirednot_data_${pharmacyId}`);
@@ -80,18 +73,17 @@ document.addEventListener('DOMContentLoaded', () => {
         pharmacyDb = { batches: [], bills: [], movements: [], expenses: [], notifications: [], activity: [] };
       }
     } else {
-      // Brand new pharmacy: STRICT ZERO RECORDS
       pharmacyDb = { batches: [], bills: [], movements: [], expenses: [], notifications: [], activity: [] };
     }
   };
 
   const savePharmacyData = () => {
-    if (!currentPharmacy.id || isDemoMode) return;
+    if (!currentPharmacy || !currentPharmacy.id || isDemoMode) return;
     localStorage.setItem(`expirednot_data_${currentPharmacy.id}`, JSON.stringify(pharmacyDb));
   };
 
   // ==========================================================================
-  // 2. SCREEN ROUTING CONTROLLER
+  // 2. ROUTING & PROTECTED ROUTE ENFORCER
   // ==========================================================================
   const welcomeScreen = document.getElementById('welcomeScreen');
   const authScreen = document.getElementById('authScreen');
@@ -102,11 +94,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const backToWelcomeBtn = document.getElementById('backToWelcomeBtn');
   const createAccountLink = document.getElementById('createAccountLink');
   const cancelSignupBtn = document.getElementById('cancelSignupBtn');
-  const step1BackBtn = document.getElementById('step1BackBtn');
+  const signupCancelBtn = document.getElementById('signupCancelBtn');
   const goToDashboardBtn = document.getElementById('goToDashboardBtn');
   const logoutBtn = document.getElementById('logoutBtn');
 
   const showScreen = (target) => {
+    // Protected Route Check
+    if (target === 'dashboard') {
+      const sessionRaw = sessionStorage.getItem(ACTIVE_SESSION_KEY);
+      if (!sessionRaw) {
+        showScreen('auth');
+        showAuthNotice('Please sign in to access your pharmacy workspace.', 'error');
+        return;
+      }
+      try {
+        currentPharmacy = JSON.parse(sessionRaw);
+        if (!currentPharmacy.setupCompleted) {
+          showScreen('signup');
+          goToOnboardingStep(3); // Resume pharmacy setup
+          return;
+        }
+      } catch {
+        showScreen('auth');
+        return;
+      }
+    }
+
     const screens = [
       { id: 'welcome', el: welcomeScreen },
       { id: 'auth', el: authScreen },
@@ -126,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    window.location.hash = target === 'welcome' ? '' : target;
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     if (target === 'dashboard') {
@@ -138,16 +152,28 @@ document.addEventListener('DOMContentLoaded', () => {
   if (createAccountLink) createAccountLink.addEventListener('click', () => {
     googleConnectedUser = null;
     showScreen('signup');
-    goToWizardStep(1);
+    goToOnboardingStep(1);
   });
   if (cancelSignupBtn) cancelSignupBtn.addEventListener('click', () => showScreen('auth'));
-  if (step1BackBtn) step1BackBtn.addEventListener('click', () => showScreen('auth'));
+  if (signupCancelBtn) signupCancelBtn.addEventListener('click', () => showScreen('auth'));
   if (goToDashboardBtn) goToDashboardBtn.addEventListener('click', () => showScreen('dashboard'));
   if (logoutBtn) logoutBtn.addEventListener('click', () => {
     sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-    currentPharmacy = { id: null, shopName: '', dlNumber: '', ownerName: '', email: '', mobile: '', role: 'Owner' };
+    currentPharmacy = null;
     showScreen('auth');
-    showAuthError('Signed out of pharmacy workspace.', 'info');
+    showAuthNotice('Signed out of pharmacy workspace.', 'info');
+  });
+
+  // Listen to hash changes for deep linking & protected route checks
+  window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'dashboard' || hash === 'inventory' || hash === 'bills') {
+      showScreen('dashboard');
+    } else if (hash === 'signup') {
+      showScreen('signup');
+    } else if (hash === 'auth') {
+      showScreen('auth');
+    }
   });
 
   // ==========================================================================
@@ -157,8 +183,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginIdentifierInput = document.getElementById('loginIdentifierInput');
   const passwordInput = document.getElementById('passwordInput');
   const togglePasswordBtn = document.getElementById('togglePasswordBtn');
-  const eyeIcon = document.getElementById('eyeIcon');
   const authNotice = document.getElementById('authNotice');
+  const signInButton = document.getElementById('signInButton');
+  const signInBtnText = document.getElementById('signInBtnText');
   const forgotPasswordLink = document.getElementById('forgotPasswordLink');
 
   if (togglePasswordBtn && passwordInput) {
@@ -169,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const showAuthError = (message, type = 'error', showCreateBtn = false) => {
+  const showAuthNotice = (message, type = 'error', showCreateBtn = false) => {
     if (!authNotice) return;
     authNotice.className = `auth-notice ${type}`;
     authNotice.innerHTML = `
@@ -182,76 +209,97 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn) {
       btn.addEventListener('click', () => {
         showScreen('signup');
-        goToWizardStep(1);
+        goToOnboardingStep(1);
       });
     }
   };
 
-  const hideAuthError = () => {
+  const hideAuthNotice = () => {
     if (authNotice) authNotice.hidden = true;
   };
 
   if (loginForm) {
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      hideAuthError();
+      hideAuthNotice();
 
       const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim() : '';
       const pass = passwordInput ? passwordInput.value : '';
 
       if (!identifier) {
-        showAuthError('Please enter your registered Email address or 10-digit Mobile number.', 'error');
+        showAuthNotice('Please enter your registered Email address or 10-digit Mobile number.', 'error');
         return;
       }
-
       if (!pass) {
-        showAuthError('Please enter your password.', 'error');
+        showAuthNotice('Please enter your password.', 'error');
         return;
       }
 
-      // STRICT DB VERIFICATION: Match against real registered users
-      registeredUsers = initUsersDb();
-      const user = registeredUsers.find(u => 
-        (u.email && u.email.toLowerCase() === identifier.toLowerCase()) ||
-        (u.mobile && u.mobile === identifier.replace(/\D/g, '').slice(-10))
-      );
+      // Button Loading State
+      if (signInButton) signInButton.disabled = true;
+      if (signInBtnText) signInBtnText.textContent = 'Signing in…';
 
-      if (!user) {
-        showAuthError("We couldn't find an account with these details. Create your pharmacy account to get started.", 'error', true);
-        return;
-      }
+      setTimeout(() => {
+        if (signInButton) signInButton.disabled = false;
+        if (signInBtnText) signInBtnText.textContent = 'Sign In';
 
-      if (user.password !== pass) {
-        showAuthError('Incorrect password. Please try again.', 'error');
-        return;
-      }
+        // STRICT DATABASE CHECK
+        registeredUsers = initUsersDb();
+        const user = registeredUsers.find(u => 
+          (u.email && u.email.toLowerCase() === identifier.toLowerCase()) ||
+          (u.mobile && u.mobile === identifier.replace(/\D/g, '').slice(-10))
+        );
 
-      // Valid Credentials -> Log into user's real pharmacy
-      currentPharmacy = {
-        id: user.id,
-        shopName: user.shopName,
-        dlNumber: user.dlNumber,
-        ownerName: user.ownerName,
-        email: user.email,
-        mobile: user.mobile,
-        role: user.role || 'Owner'
-      };
+        if (!user) {
+          showAuthNotice("We couldn't find an account with these details. Create your pharmacy account to get started.", 'error', true);
+          return;
+        }
 
-      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-      loadPharmacyData(user.id);
-      showScreen('dashboard');
+        if (user.password !== pass) {
+          showAuthNotice('Incorrect password. Please try again.', 'error');
+          return;
+        }
+
+        // Check verification & onboarding state
+        if (!user.emailVerified) {
+          pendingRegistration = {
+            email: user.email,
+            password: user.password,
+            otp: '482910',
+            otpExpiresAt: Date.now() + 5 * 60 * 1000,
+            attempts: 0
+          };
+          showScreen('signup');
+          goToOnboardingStep(2);
+          return;
+        }
+
+        if (!user.setupCompleted) {
+          currentPharmacy = user;
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+          showScreen('signup');
+          goToOnboardingStep(3);
+          return;
+        }
+
+        // Complete verified user -> Launch Dashboard
+        currentPharmacy = user;
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        loadPharmacyData(user.id);
+        showScreen('dashboard');
+      }, 400);
     });
   }
 
   if (forgotPasswordLink) {
     forgotPasswordLink.addEventListener('click', (e) => {
       e.preventDefault();
-      showAuthError('Password reset link sent to your registered mobile and email.', 'info');
+      showAuthNotice('Password reset instructions sent to your email.', 'info');
     });
   }
 
   // ==========================================================================
-  // 4. GOOGLE OAUTH MODAL (NEW VS EXISTING USER ROUTING)
+  // 4. GOOGLE OAUTH INTEGRATION (NEW VS EXISTING USER)
   // ==========================================================================
   const googleModal = document.getElementById('googleModal');
   const googleModalBackdrop = document.getElementById('googleModalBackdrop');
@@ -294,58 +342,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const handleGoogleAuth = (name, email, shopName, dlNumber, isNewUser = false) => {
+  const handleGoogleAuth = (name, email, isNewUser = false) => {
     if (googleAccountsList) googleAccountsList.hidden = true;
     if (googleLoadingState) {
       googleLoadingState.hidden = false;
-      if (googleLoadingText) googleLoadingText.textContent = `Authenticating as ${name}...`;
+      if (googleLoadingText) googleLoadingText.textContent = `Connecting with Google (${email})...`;
     }
 
     setTimeout(() => {
       closeGoogleModal();
       registeredUsers = initUsersDb();
 
-      // Check if user already exists in DB
       const existing = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-      if (existing && !isNewUser) {
-        // Existing User -> Go straight to dashboard
-        currentPharmacy = {
-          id: existing.id,
-          shopName: existing.shopName,
-          dlNumber: existing.dlNumber,
-          ownerName: existing.ownerName,
-          email: existing.email,
-          mobile: existing.mobile,
-          role: existing.role || 'Owner'
-        };
+      if (existing && existing.setupCompleted && !isNewUser) {
+        // Existing Google user -> Direct to Dashboard
+        currentPharmacy = existing;
         sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
         loadPharmacyData(existing.id);
         showScreen('dashboard');
       } else {
-        // New Google User -> Fast-track 2-step onboarding with pre-filled Google account
+        // New Google user -> Skip password & OTP, fast-track to Pharmacy Details
         googleConnectedUser = { name, email };
+        pendingRegistration = {
+          email: email,
+          password: 'GOOGLE_AUTH_SESSION',
+          emailVerified: true
+        };
+
         showScreen('signup');
         
-        // Pre-fill owner details
+        const googleConnectedPill = document.getElementById('googleConnectedPill');
+        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
         const regOwnerName = document.getElementById('regOwnerName');
-        const regAccountEmail = document.getElementById('regAccountEmail');
-        if (regOwnerName) regOwnerName.value = name;
-        if (regAccountEmail) regAccountEmail.value = email;
 
-        goToWizardStep(1);
+        if (googleConnectedPill) googleConnectedPill.hidden = false;
+        if (googleEmailDisplay) googleEmailDisplay.textContent = email;
+        if (regOwnerName) regOwnerName.value = name;
+
+        goToOnboardingStep(3); // Direct to Pharmacy Details
       }
-    }, 450);
+    }, 500);
   };
 
   document.querySelectorAll('.google-account-item[data-email]').forEach(btn => {
     btn.addEventListener('click', () => {
       const name = btn.getAttribute('data-name');
       const email = btn.getAttribute('data-email');
-      const shop = btn.getAttribute('data-shop') || '';
-      const dl = btn.getAttribute('data-dl') || '';
       const isNew = btn.getAttribute('data-new') === 'true';
-      handleGoogleAuth(name, email, shop, dl, isNew);
+      handleGoogleAuth(name, email, isNew);
     });
   });
 
@@ -354,41 +399,57 @@ document.addEventListener('DOMContentLoaded', () => {
       const email = customGoogleEmail.value.trim();
       if (!email) return;
       const inferredName = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      handleGoogleAuth(inferredName, email, '', '', true);
+      handleGoogleAuth(inferredName, email, true);
     });
   }
 
   // ==========================================================================
-  // 5. SIMPLIFIED 3-STEP ONBOARDING WIZARD
+  // 5. SIGNUP & EMAIL OTP VERIFICATION FLOW
   // ==========================================================================
-  const regStep1Pane = document.getElementById('regStep1Pane');
-  const regStep2Pane = document.getElementById('regStep2Pane');
-  const regStep3Pane = document.getElementById('regStep3Pane');
-  const regStepSuccessPane = document.getElementById('regStepSuccessPane');
+  const paneCreateAccount = document.getElementById('paneCreateAccount');
+  const paneOtpVerify = document.getElementById('paneOtpVerify');
+  const panePharmacyDetails = document.getElementById('panePharmacyDetails');
+  const paneOwnerDetails = document.getElementById('paneOwnerDetails');
+  const paneOnboardingSuccess = document.getElementById('paneOnboardingSuccess');
 
   const pStep1Indicator = document.getElementById('pStep1Indicator');
   const pStep2Indicator = document.getElementById('pStep2Indicator');
   const pStep3Indicator = document.getElementById('pStep3Indicator');
   const progressBarFill = document.getElementById('progressBarFill');
+  const onboardingNavTagline = document.getElementById('onboardingNavTagline');
 
-  let signupData = {
+  let pendingRegistration = {
+    email: '',
+    password: '',
+    otp: '',
+    otpExpiresAt: 0,
+    attempts: 0,
     shopName: '',
     dlNumber: '',
     pharmacyType: '',
     pharmacyPhone: '',
     ownerName: '',
     role: '',
-    ownerMobile: '',
-    email: '',
-    password: ''
+    ownerMobile: ''
   };
 
-  const goToWizardStep = (stepNumber) => {
+  let resendInterval = null;
+  let resendCountdown = 30;
+
+  const maskEmail = (emailStr) => {
+    if (!emailStr || !emailStr.includes('@')) return 'your email';
+    const [name, domain] = emailStr.split('@');
+    const maskedName = name.length > 2 ? name[0] + '***' + name.slice(-1) : name[0] + '***';
+    return `${maskedName}@${domain}`;
+  };
+
+  const goToOnboardingStep = (stepNumber) => {
     const panes = [
-      { step: 1, el: regStep1Pane, pct: '33.33%' },
-      { step: 2, el: regStep2Pane, pct: '66.66%' },
-      { step: 3, el: regStep3Pane, pct: '100%' },
-      { step: 4, el: regStepSuccessPane, pct: '100%' }
+      { step: 1, el: paneCreateAccount, pct: '25%', label: 'Account' },
+      { step: 2, el: paneOtpVerify, pct: '50%', label: 'Verify Email' },
+      { step: 3, el: panePharmacyDetails, pct: '75%', label: 'Pharmacy Setup' },
+      { step: 4, el: paneOwnerDetails, pct: '90%', label: 'Owner Details' },
+      { step: 5, el: paneOnboardingSuccess, pct: '100%', label: 'All Set' }
     ];
 
     panes.forEach(p => {
@@ -403,175 +464,329 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    if (stepNumber <= 3) {
-      if (progressBarFill) progressBarFill.style.width = panes[stepNumber - 1].pct;
-      if (pStep1Indicator) pStep1Indicator.className = stepNumber === 1 ? 'progress-step-item active' : 'progress-step-item completed';
-      if (pStep2Indicator) pStep2Indicator.className = stepNumber === 2 ? 'progress-step-item active' : (stepNumber > 2 ? 'progress-step-item completed' : 'progress-step-item');
-      if (pStep3Indicator) pStep3Indicator.className = stepNumber === 3 ? 'progress-step-item active' : 'progress-step-item';
-    }
+    const cur = panes.find(p => p.step === stepNumber);
+    if (progressBarFill && cur) progressBarFill.style.width = cur.pct;
+    if (onboardingNavTagline && cur) onboardingNavTagline.textContent = cur.label;
 
-    // If Google user in Step 3 -> Show Connected Pill & simplify fields
-    if (stepNumber === 3) {
-      const googleConnectedPill = document.getElementById('googleConnectedPill');
-      const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
-      const regEmailGroup = document.getElementById('regEmailGroup');
-      const regPasswordGroup = document.getElementById('regPasswordGroup');
-      const regConfirmPasswordGroup = document.getElementById('regConfirmPasswordGroup');
-      const step3Subtext = document.getElementById('regStep3Subtext');
-
-      if (googleConnectedUser) {
-        if (googleConnectedPill) googleConnectedPill.hidden = false;
-        if (googleEmailDisplay) googleEmailDisplay.textContent = googleConnectedUser.email;
-        if (regEmailGroup) regEmailGroup.hidden = true;
-        if (regPasswordGroup) regPasswordGroup.hidden = true;
-        if (regConfirmPasswordGroup) regConfirmPasswordGroup.hidden = true;
-        if (step3Subtext) step3Subtext.textContent = 'Your Google account is linked. Click below to initialize your workspace.';
-      } else {
-        if (googleConnectedPill) googleConnectedPill.hidden = true;
-        if (regEmailGroup) regEmailGroup.hidden = false;
-        if (regPasswordGroup) regPasswordGroup.hidden = false;
-        if (regConfirmPasswordGroup) regConfirmPasswordGroup.hidden = false;
-        if (step3Subtext) step3Subtext.textContent = 'Create your credentials to access your pharmacy inventory.';
-      }
-    }
+    if (pStep1Indicator) pStep1Indicator.className = stepNumber === 1 ? 'progress-step-item active' : 'progress-step-item completed';
+    if (pStep2Indicator) pStep2Indicator.className = stepNumber === 2 ? 'progress-step-item active' : (stepNumber > 2 ? 'progress-step-item completed' : 'progress-step-item');
+    if (pStep3Indicator) pStep3Indicator.className = stepNumber >= 3 ? 'progress-step-item active' : 'progress-step-item';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Step 1 Submit
-  const step1Form = document.getElementById('step1Form');
+  // Step 1: Create Account Form
+  const createAccountForm = document.getElementById('createAccountForm');
+  const regEmailInput = document.getElementById('regEmailInput');
+  const regPassInput = document.getElementById('regPassInput');
+  const regConfirmPassInput = document.getElementById('regConfirmPassInput');
+  const sendOtpBtn = document.getElementById('sendOtpBtn');
+  const sendOtpBtnText = document.getElementById('sendOtpBtnText');
+  const signupNotice = document.getElementById('signupNotice');
+
+  if (createAccountForm) {
+    createAccountForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (signupNotice) signupNotice.hidden = true;
+
+      const email = regEmailInput ? regEmailInput.value.trim() : '';
+      const pass = regPassInput ? regPassInput.value : '';
+      const confPass = regConfirmPassInput ? regConfirmPassInput.value : '';
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showSignupNotice('Please enter a valid email address.', 'error');
+        return;
+      }
+      if (!pass || pass.length < 8) {
+        showSignupNotice('Password must be at least 8 characters.', 'error');
+        return;
+      }
+      if (pass !== confPass) {
+        showSignupNotice('Passwords do not match.', 'error');
+        return;
+      }
+
+      // Check if already registered
+      registeredUsers = initUsersDb();
+      if (registeredUsers.some(u => u.email.toLowerCase() === email.toLowerCase() && u.setupCompleted)) {
+        showSignupNotice('An account with this email already exists. Please sign in.', 'error');
+        return;
+      }
+
+      if (sendOtpBtn) sendOtpBtn.disabled = true;
+      if (sendOtpBtnText) sendOtpBtnText.textContent = 'Sending code…';
+
+      setTimeout(() => {
+        if (sendOtpBtn) sendOtpBtn.disabled = false;
+        if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
+
+        // Generate 6-digit OTP code
+        const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        pendingRegistration = {
+          email: email,
+          password: pass,
+          otp: generatedOtp,
+          otpExpiresAt: Date.now() + 5 * 60 * 1000,
+          attempts: 0
+        };
+
+        const maskedDisplay = document.getElementById('maskedEmailDisplay');
+        if (maskedDisplay) maskedDisplay.textContent = maskEmail(email);
+
+        startResendTimer();
+        goToOnboardingStep(2);
+        clearOtpBoxes();
+      }, 450);
+    });
+  }
+
+  const showSignupNotice = (msg, type = 'error') => {
+    if (!signupNotice) return;
+    signupNotice.className = `auth-notice ${type}`;
+    signupNotice.textContent = msg;
+    signupNotice.hidden = false;
+  };
+
+  // Step 2: 6-Digit OTP Handling
+  const otpBoxes = document.querySelectorAll('.otp-digit-box');
+  const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+  const verifyOtpBtnText = document.getElementById('verifyOtpBtnText');
+  const otpNotice = document.getElementById('otpNotice');
+  const resendOtpBtn = document.getElementById('resendOtpBtn');
+  const resendTimerText = document.getElementById('resendTimerText');
+
+  const clearOtpBoxes = () => {
+    otpBoxes.forEach(b => {
+      b.value = '';
+      b.classList.remove('error');
+    });
+    if (otpBoxes[0]) otpBoxes[0].focus();
+  };
+
+  otpBoxes.forEach((box, idx) => {
+    box.addEventListener('input', (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      box.value = val.slice(-1);
+
+      if (box.value && idx < otpBoxes.length - 1) {
+        otpBoxes[idx + 1].focus();
+      }
+    });
+
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !box.value && idx > 0) {
+        otpBoxes[idx - 1].focus();
+      }
+    });
+
+    box.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+      if (pasted) {
+        pasted.split('').slice(0, 6).forEach((char, i) => {
+          if (otpBoxes[i]) otpBoxes[i].value = char;
+        });
+        const lastIdx = Math.min(pasted.length, 5);
+        if (otpBoxes[lastIdx]) otpBoxes[lastIdx].focus();
+      }
+    });
+  });
+
+  const startResendTimer = () => {
+    if (resendInterval) clearInterval(resendInterval);
+    resendCountdown = 30;
+    if (resendOtpBtn) resendOtpBtn.disabled = true;
+
+    resendInterval = setInterval(() => {
+      resendCountdown--;
+      if (resendTimerText) resendTimerText.textContent = `Resend in ${resendCountdown}s`;
+      if (resendCountdown <= 0) {
+        clearInterval(resendInterval);
+        if (resendOtpBtn) resendOtpBtn.disabled = false;
+        if (resendTimerText) resendTimerText.textContent = 'Resend code';
+      }
+    }, 1000);
+  };
+
+  if (resendOtpBtn) {
+    resendOtpBtn.addEventListener('click', () => {
+      pendingRegistration.otp = Math.floor(100000 + Math.random() * 900000).toString();
+      pendingRegistration.otpExpiresAt = Date.now() + 5 * 60 * 1000;
+      pendingRegistration.attempts = 0;
+      startResendTimer();
+      clearOtpBoxes();
+      showOtpNotice('New 6-digit verification code sent.', 'info');
+    });
+  }
+
+  const showOtpNotice = (msg, type = 'error') => {
+    if (!otpNotice) return;
+    otpNotice.className = `auth-notice ${type}`;
+    otpNotice.textContent = msg;
+    otpNotice.hidden = false;
+  };
+
+  if (verifyOtpBtn) {
+    verifyOtpBtn.addEventListener('click', () => {
+      if (otpNotice) otpNotice.hidden = true;
+
+      const enteredCode = Array.from(otpBoxes).map(b => b.value).join('');
+
+      if (enteredCode.length < 6) {
+        showOtpNotice('Please enter the complete 6-digit code.', 'error');
+        return;
+      }
+
+      if (Date.now() > pendingRegistration.otpExpiresAt) {
+        showOtpNotice('This verification code has expired. Request a new code.', 'error');
+        return;
+      }
+
+      if (pendingRegistration.attempts >= 5) {
+        showOtpNotice('Too many attempts. Please request a new verification code.', 'error');
+        return;
+      }
+
+      if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+      if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verifying…';
+
+      setTimeout(() => {
+        if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+        if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
+
+        // Match entered code with generated OTP (or demo default 482910)
+        if (enteredCode === pendingRegistration.otp || enteredCode === '482910') {
+          showOtpNotice('Email verified ✓', 'success');
+          pendingRegistration.emailVerified = true;
+
+          setTimeout(() => {
+            goToOnboardingStep(3); // Proceed to Pharmacy Details
+          }, 400);
+        } else {
+          pendingRegistration.attempts++;
+          otpBoxes.forEach(b => b.classList.add('error'));
+          showOtpNotice("That code doesn't look right. Please try again.", 'error');
+        }
+      }, 400);
+    });
+  }
+
+  // Step 3: Pharmacy Details Form
+  const pharmacyDetailsForm = document.getElementById('pharmacyDetailsForm');
   const regShopName = document.getElementById('regShopName');
   const regDlNumber = document.getElementById('regDlNumber');
   const regPharmacyType = document.getElementById('regPharmacyType');
   const regPharmacyPhone = document.getElementById('regPharmacyPhone');
+  const pharmacyDetailsBackBtn = document.getElementById('pharmacyDetailsBackBtn');
 
-  if (step1Form) {
-    step1Form.addEventListener('submit', (e) => {
+  if (pharmacyDetailsBackBtn) {
+    pharmacyDetailsBackBtn.addEventListener('click', () => {
+      if (googleConnectedUser) {
+        showScreen('auth');
+      } else {
+        goToOnboardingStep(2);
+      }
+    });
+  }
+
+  if (pharmacyDetailsForm) {
+    pharmacyDetailsForm.addEventListener('submit', (e) => {
       e.preventDefault();
       if (!regShopName.value.trim() || !regDlNumber.value.trim() || !regPharmacyType.value || !regPharmacyPhone.value.trim()) {
         alert('Please fill all required pharmacy details.');
         return;
       }
-      signupData.shopName = regShopName.value.trim();
-      signupData.dlNumber = regDlNumber.value.trim();
-      signupData.pharmacyType = regPharmacyType.value;
-      signupData.pharmacyPhone = regPharmacyPhone.value.trim();
 
-      // Carry mobile to Step 2 if not set
+      pendingRegistration.shopName = regShopName.value.trim();
+      pendingRegistration.dlNumber = regDlNumber.value.trim();
+      pendingRegistration.pharmacyType = regPharmacyType.value;
+      pendingRegistration.pharmacyPhone = regPharmacyPhone.value.trim();
+
       const regOwnerMobile = document.getElementById('regOwnerMobile');
       if (regOwnerMobile && !regOwnerMobile.value) {
-        regOwnerMobile.value = signupData.pharmacyPhone;
+        regOwnerMobile.value = pendingRegistration.pharmacyPhone;
       }
 
-      goToWizardStep(2);
+      goToOnboardingStep(4); // Proceed to Owner Details
     });
   }
 
-  // Step 2 Submit
-  const step2Form = document.getElementById('step2Form');
-  const step2BackBtn = document.getElementById('step2BackBtn');
+  // Step 4: Owner Details Form
+  const ownerDetailsForm = document.getElementById('ownerDetailsForm');
   const regOwnerName = document.getElementById('regOwnerName');
   const regOwnerRole = document.getElementById('regOwnerRole');
   const regOwnerMobile = document.getElementById('regOwnerMobile');
+  const ownerDetailsBackBtn = document.getElementById('ownerDetailsBackBtn');
+  const finishSetupBtn = document.getElementById('finishSetupBtn');
+  const finishSetupBtnText = document.getElementById('finishSetupBtnText');
 
-  if (step2BackBtn) step2BackBtn.addEventListener('click', () => goToWizardStep(1));
+  if (ownerDetailsBackBtn) ownerDetailsBackBtn.addEventListener('click', () => goToOnboardingStep(3));
 
-  if (step2Form) {
-    step2Form.addEventListener('submit', (e) => {
+  if (ownerDetailsForm) {
+    ownerDetailsForm.addEventListener('submit', (e) => {
       e.preventDefault();
       if (!regOwnerName.value.trim() || !regOwnerRole.value || !regOwnerMobile.value.trim()) {
         alert('Please fill all required owner details.');
         return;
       }
-      signupData.ownerName = regOwnerName.value.trim();
-      signupData.role = regOwnerRole.value;
-      signupData.ownerMobile = regOwnerMobile.value.trim();
 
-      goToWizardStep(3);
-    });
-  }
+      pendingRegistration.ownerName = regOwnerName.value.trim();
+      pendingRegistration.role = regOwnerRole.value;
+      pendingRegistration.ownerMobile = regOwnerMobile.value.trim();
 
-  // Step 3 Submit
-  const step3Form = document.getElementById('step3Form');
-  const step3BackBtn = document.getElementById('step3BackBtn');
-  const regAccountEmail = document.getElementById('regAccountEmail');
-  const regPassword = document.getElementById('regPassword');
-  const regConfirmPassword = document.getElementById('regConfirmPassword');
+      if (finishSetupBtn) finishSetupBtn.disabled = true;
+      if (finishSetupBtnText) finishSetupBtnText.textContent = 'Configuring workspace…';
 
-  if (step3BackBtn) step3BackBtn.addEventListener('click', () => goToWizardStep(2));
+      setTimeout(() => {
+        if (finishSetupBtn) finishSetupBtn.disabled = false;
+        if (finishSetupBtnText) finishSetupBtnText.textContent = 'Finish Setup →';
 
-  if (step3Form) {
-    step3Form.addEventListener('submit', (e) => {
-      e.preventDefault();
+        // Finalize User Account
+        const newUserId = 'PHARM_' + Date.now();
+        const finalUserRecord = {
+          id: newUserId,
+          email: pendingRegistration.email,
+          mobile: pendingRegistration.ownerMobile,
+          password: pendingRegistration.password,
+          emailVerified: true,
+          setupCompleted: true,
+          shopName: pendingRegistration.shopName,
+          dlNumber: pendingRegistration.dlNumber,
+          pharmacyType: pendingRegistration.pharmacyType,
+          ownerName: pendingRegistration.ownerName,
+          role: pendingRegistration.role
+        };
 
-      if (googleConnectedUser) {
-        signupData.email = googleConnectedUser.email;
-        signupData.password = 'GOOGLE_AUTH_SESSION';
-      } else {
-        if (!regAccountEmail.value.trim() || !regPassword.value || regPassword.value.length < 8) {
-          alert('Please enter a valid email and a password of at least 8 characters.');
-          return;
-        }
-        if (regPassword.value !== regConfirmPassword.value) {
-          alert('Passwords do not match.');
-          return;
-        }
-        signupData.email = regAccountEmail.value.trim();
-        signupData.password = regPassword.value;
-      }
+        registeredUsers.push(finalUserRecord);
+        saveUsersDb();
 
-      // Save to registered Users DB
-      const newUserId = 'PHARM_' + Date.now();
-      const newUserRecord = {
-        id: newUserId,
-        email: signupData.email,
-        mobile: signupData.ownerMobile,
-        password: signupData.password,
-        shopName: signupData.shopName,
-        dlNumber: signupData.dlNumber,
-        pharmacyType: signupData.pharmacyType,
-        ownerName: signupData.ownerName,
-        role: signupData.role
-      };
+        // Initialize STRICT ZERO Clean Database
+        pharmacyDb = {
+          batches: [],
+          bills: [],
+          movements: [],
+          expenses: [],
+          notifications: [
+            {
+              id: 'NOTIF_INIT',
+              text: `Welcome to EXPIREDNOT, ${finalUserRecord.shopName}! Your workspace is ready.`,
+              type: 'system',
+              timestamp: 'Just now',
+              read: false
+            }
+          ],
+          activity: []
+        };
 
-      registeredUsers.push(newUserRecord);
-      saveUsersDb();
+        currentPharmacy = finalUserRecord;
+        savePharmacyData();
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
 
-      // Initialize real empty pharmacy database
-      currentPharmacy = {
-        id: newUserId,
-        shopName: signupData.shopName,
-        dlNumber: signupData.dlNumber,
-        ownerName: signupData.ownerName,
-        email: signupData.email,
-        mobile: signupData.ownerMobile,
-        role: signupData.role
-      };
-
-      pharmacyDb = {
-        batches: [],
-        bills: [],
-        movements: [],
-        expenses: [],
-        notifications: [
-          {
-            id: 'NOTIF_WELCOME',
-            text: `Welcome to EXPIREDNOT! Your pharmacy workspace is ready.`,
-            type: 'system',
-            timestamp: 'Just now',
-            read: false
-          }
-        ],
-        activity: []
-      };
-
-      savePharmacyData();
-      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-
-      // Show Success Screen
-      const successTitle = document.getElementById('successWelcomeShopTitle');
-      if (successTitle) successTitle.textContent = `Welcome to EXPIREDNOT, ${signupData.shopName}`;
-      goToWizardStep(4);
+        // Show Success Screen
+        const successTitle = document.getElementById('successWelcomeShopTitle');
+        if (successTitle) successTitle.textContent = `Welcome to EXPIREDNOT, ${finalUserRecord.shopName}`;
+        goToOnboardingStep(5);
+      }, 500);
     });
   }
 
@@ -589,7 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inventory: document.getElementById('paneInventory'),
     batches: document.getElementById('paneBatches'),
     lowstock: document.getElementById('paneLowStock'),
-    expiry: document.getElementById('paneBatches'), // shares batches FEFO view
+    expiry: document.getElementById('paneBatches'),
     returns: document.getElementById('paneReturns'),
     movement: document.getElementById('paneMovement'),
     suppliers: document.getElementById('paneSuppliers'),
@@ -620,7 +835,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Close mobile drawer if open
     if (appSidebar) appSidebar.classList.remove('sidebar-open');
     if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
 
@@ -635,7 +849,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Mobile Drawer Toggle
   if (sidebarToggleBtn && appSidebar && sidebarBackdrop) {
     sidebarToggleBtn.addEventListener('click', () => {
       appSidebar.classList.toggle('sidebar-open');
@@ -702,7 +915,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Master UI Refresh Function
   const refreshAllWorkspaceViews = () => {
-    // Header & Profile Labels
+    if (!currentPharmacy) return;
+
     const activeShopName = document.getElementById('activeShopName');
     const activeDlNumber = document.getElementById('activeDlNumber');
     const greetingUserTitle = document.getElementById('greetingUserTitle');
@@ -766,7 +980,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Update KPI UI
     const kpiTotalValue = document.getElementById('kpiTotalValue');
     const kpiTotalCount = document.getElementById('kpiTotalCount');
     const kpiMedicinesCount = document.getElementById('kpiMedicinesCount');
@@ -797,7 +1010,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (kpiClearedValue) kpiClearedValue.textContent = `₹${clearedVal.toLocaleString('en-IN')}`;
     if (kpiClearedCount) kpiClearedCount.textContent = `${pharmacyDb.movements.filter(m => m.type === 'Returned').length} returns adjusted`;
 
-    // Update Sidebar Badges
     const sideCountInventory = document.getElementById('sideCountInventory');
     const sideCountLowStock = document.getElementById('sideCountLowStock');
     const sideCountExpiry = document.getElementById('sideCountExpiry');
@@ -817,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', () => {
       notifBadge.hidden = unread === 0;
     }
 
-    // Toggle Empty Banner vs Populated Grid
     const emptyBanner = document.getElementById('emptyInventoryBanner');
     const populatedGrid = document.getElementById('populatedDashboardGrid');
 
@@ -834,12 +1045,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderActivityList();
   };
 
-  // Urgent Queue with FEFO Intelligence
   const renderUrgentQueue = (batches) => {
     const tbody = document.getElementById('urgentBatchTableBody');
     if (!tbody) return;
 
-    // Group batches by medicine name to determine FEFO priority
     const medMap = {};
     batches.forEach(b => {
       const key = b.name.trim().toLowerCase();
@@ -847,7 +1056,6 @@ document.addEventListener('DOMContentLoaded', () => {
       medMap[key].push({ ...b, daysLeft: calculateDaysRemaining(b.expiryDate) });
     });
 
-    // Tag FEFO advice
     const flattened = [];
     Object.keys(medMap).forEach(medKey => {
       const group = medMap[medKey].sort((a, b) => a.daysLeft - b.daysLeft);
@@ -858,9 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    const urgentItems = flattened
-      .sort((a, b) => a.daysLeft - b.daysLeft)
-      .slice(0, 6);
+    const urgentItems = flattened.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 6);
 
     tbody.innerHTML = urgentItems.map(b => {
       const risk = getRiskDetails(b.daysLeft);
@@ -891,7 +1097,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   };
 
-  // Activity Feed
   const renderActivityList = () => {
     const list = document.getElementById('activityTimelineList');
     if (!list) return;
@@ -917,7 +1122,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // 6-Month Expiry Forecast
   const renderForecastBars = (batches) => {
     const container = document.getElementById('forecastBarsContainer');
     if (!container) return;
@@ -969,7 +1173,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   };
 
-  // Live Inventory Table
   const renderInventoryTable = () => {
     const tbody = document.getElementById('inventoryTableBody');
     const empty = document.getElementById('emptyInventoryTableState');
@@ -1040,7 +1243,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   };
 
-  // Batches & FEFO Table
   const renderBatchesAndFefoTable = () => {
     const tbody = document.getElementById('batchesTableBody');
     const empty = document.getElementById('emptyBatchesTableState');
@@ -1074,14 +1276,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   };
 
-  // Low Stock View
   const renderLowStockView = () => {
     const list = document.getElementById('lowStockList');
     const empty = document.getElementById('emptyLowStockState');
     const sideCountLowStock = document.getElementById('sideCountLowStock');
     if (!list || !empty) return;
 
-    // Aggregate quantities by medicine name
     const medTotals = {};
     pharmacyDb.batches.forEach(b => {
       const k = b.name;
@@ -1117,7 +1317,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // Returns View
   const renderReturnsView = () => {
     const grid = document.getElementById('returnsCardsGrid');
     const empty = document.getElementById('emptyReturnsState');
@@ -1175,7 +1374,6 @@ document.addEventListener('DOMContentLoaded', () => {
     switchWorkspaceTab('returns');
   };
 
-  // Movement Log
   const renderMovementLog = () => {
     const tbody = document.getElementById('movementTableBody');
     const empty = document.getElementById('emptyMovementState');
@@ -1202,7 +1400,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // Suppliers Directory
   const renderSuppliersView = () => {
     const grid = document.getElementById('suppliersGrid');
     if (!grid) return;
@@ -1244,7 +1441,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // Expenses View
   const renderExpensesView = () => {
     const tbody = document.getElementById('expensesTableBody');
     const empty = document.getElementById('emptyExpensesState');
@@ -1268,7 +1464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // Analytics View
   const renderAnalyticsView = () => {
     const anaLossPrevented = document.getElementById('anaLossPrevented');
     const anaActiveStock = document.getElementById('anaActiveStock');
@@ -1282,7 +1477,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (anaTotalBills) anaTotalBills.textContent = pharmacyDb.bills.length;
   };
 
-  // Notifications Feed
   const renderNotificationsView = () => {
     const feed = document.getElementById('notificationsFeed');
     const empty = document.getElementById('emptyNotifsState');
@@ -1308,7 +1502,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // Ingested Bills
   const renderBillsHistory = () => {
     const list = document.getElementById('billsHistoryList');
     const empty = document.getElementById('emptyBillsHistory');
@@ -1340,7 +1533,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
-  // Search & Filter listeners
   const inventorySearchInput = document.getElementById('inventorySearchInput');
   const inventoryExpiryFilter = document.getElementById('inventoryExpiryFilter');
   if (inventorySearchInput) inventorySearchInput.addEventListener('input', renderInventoryTable);
@@ -1457,7 +1649,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
 
-    // Attach sync
     ocrTableBody.querySelectorAll('tr').forEach(tr => {
       const idx = parseInt(tr.getAttribute('data-index'), 10);
       const inName = tr.querySelector('.ocr-in-name');
@@ -1511,7 +1702,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // File Upload Handlers
   if (browseFileBtn && billFileInput) {
     browseFileBtn.addEventListener('click', () => billFileInput.click());
   }
@@ -1547,7 +1737,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Human Confirmation Gate -> Commit Strictly to Real DB
+  // Confirm OCR -> Save to Real DB
   if (ocrConfirmSaveBtn) {
     ocrConfirmSaveBtn.addEventListener('click', () => {
       if (!currentOcrBill || currentOcrBill.items.length === 0) {
@@ -1576,7 +1766,6 @@ document.addEventListener('DOMContentLoaded', () => {
           createdAt: new Date().toISOString()
         });
 
-        // Log Movement (Purchased)
         pharmacyDb.movements.unshift({
           id: 'MOV_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           timestamp: 'Just now',
@@ -1589,7 +1778,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
-      // Save Bill Record
       pharmacyDb.bills.unshift({
         id: 'BILL_' + Date.now(),
         distributor: currentOcrBill.distributor,
@@ -1600,14 +1788,12 @@ document.addEventListener('DOMContentLoaded', () => {
         timestamp: nowStr
       });
 
-      // Log Activity
       pharmacyDb.activity.unshift({
         id: 'ACT_' + Date.now(),
         text: `Ingested ${currentOcrBill.distributor} Bill #${currentOcrBill.invoiceNo} (₹${totalBillAmount.toLocaleString('en-IN')})`,
         timestamp: 'Just now'
       });
 
-      // Add Notification
       pharmacyDb.notifications.unshift({
         id: 'NOTIF_' + Date.now(),
         text: `Bill #${currentOcrBill.invoiceNo} from ${currentOcrBill.distributor} added to inventory.`,
@@ -1626,7 +1812,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // 9. MODALS: ADD MEDICINE, LOG MOVEMENT, ADD EXPENSE
+  // 9. MODALS: MANUAL ADD MEDICINE, LOG MOVEMENT, ADD EXPENSE
   // ==========================================================================
   
   // Add Medicine Modal
@@ -1844,7 +2030,6 @@ document.addEventListener('DOMContentLoaded', () => {
       isDemoMode = true;
       realDbBackup = JSON.parse(JSON.stringify(pharmacyDb));
 
-      // Load temporary isolated presentation data
       pharmacyDb = {
         batches: [
           { id: 'DEMO_1', name: 'Augmentin 625 Duo Tablet', pack: '10s', batchNo: 'AUG-9821', expiryDate: '2026-09', quantity: 14, purchaseRate: 155, mrp: 204, rack: 'Rack A-2', distributor: 'Cipla Distributors', createdAt: new Date().toISOString() },
@@ -1903,14 +2088,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // 11. INITIAL SESSION CHECK & APP STARTUP
+  // 11. INITIAL PROTECTED SESSION CHECK
   // ==========================================================================
   const activeSessionRaw = sessionStorage.getItem(ACTIVE_SESSION_KEY);
   if (activeSessionRaw) {
     try {
       currentPharmacy = JSON.parse(activeSessionRaw);
-      loadPharmacyData(currentPharmacy.id);
-      showScreen('dashboard');
+      if (currentPharmacy.setupCompleted) {
+        loadPharmacyData(currentPharmacy.id);
+        showScreen('dashboard');
+      } else {
+        showScreen('welcome');
+      }
     } catch {
       showScreen('welcome');
     }

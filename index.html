@@ -20,20 +20,31 @@
 <body>
   
   <!-- ==========================================================================
-       VIEW 1: MINIMAL WELCOME / SPLASH SCREEN (NAMASTE ENTRANCE)
+       VIEW 1: CINEMATIC WELCOME SCREEN (WARM INDIAN WELCOME + HEALTHCARE)
        ========================================================================== -->
   <main id="welcomeScreen" class="welcome-screen view-active" aria-label="Welcome to EXPIREDNOT">
+    
+    <!-- Ambient Background Lighting & Faint Decorative Geometry -->
+    <div class="welcome-ambient-glow" aria-hidden="true"></div>
+    <div class="welcome-faint-line-art" aria-hidden="true">
+      <svg width="100%" height="100%" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="200" cy="150" r="120" stroke="rgba(5, 150, 105, 0.05)" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <path d="M1050 200C950 350 1100 500 1000 650" stroke="rgba(13, 148, 136, 0.06)" stroke-width="1.5"/>
+        <rect x="150" y="550" width="80" height="80" rx="20" stroke="rgba(5, 150, 105, 0.04)" stroke-width="1.5"/>
+      </svg>
+    </div>
+
     <div class="welcome-container anim-fade-card gradient-border-card">
       
-      <!-- Subtle Namaste Gesture Icon -->
+      <!-- Refined Namaste Icon Badge with Soft Glow -->
       <div class="namaste-badge anim-namaste" aria-hidden="true">
-        <svg class="namaste-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2.75V15.25" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
-          <path d="M9.5 5.5C8.75 7.15 8 9.3 8 11.5C8 13.7 8.75 15.2 9.8 16.3" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
-          <path d="M14.5 5.5C15.25 7.15 16 9.3 16 11.5C16 13.7 15.25 15.2 14.2 16.3" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
-          <path d="M7 8.75C6.35 10.15 6 11.75 6 13.3C6 16.1 7.35 18.3 9.2 19.25" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
-          <path d="M17 8.75C17.65 10.15 18 11.75 18 13.3C18 16.1 16.65 18.3 14.8 19.25" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
-          <path d="M9.25 21.25H14.75" stroke="url(#emeraldGradient)" stroke-width="1.75" stroke-linecap="round"/>
+        <svg class="namaste-icon" width="38" height="38" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2.75V15.25" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M9.5 5.5C8.75 7.15 8 9.3 8 11.5C8 13.7 8.75 15.2 9.8 16.3" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M14.5 5.5C15.25 7.15 16 9.3 16 11.5C16 13.7 15.25 15.2 14.2 16.3" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M7 8.75C6.35 10.15 6 11.75 6 13.3C6 16.1 7.35 18.3 9.2 19.25" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M17 8.75C17.65 10.15 18 11.75 18 13.3C18 16.1 16.65 18.3 14.8 19.25" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M9.25 21.25H14.75" stroke="url(#emeraldGradient)" stroke-width="1.8" stroke-linecap="round"/>
           <defs>
             <linearGradient id="emeraldGradient" x1="6" y1="3" x2="18" y2="21" gradientUnits="userSpaceOnUse">
               <stop stop-color="#047857"/>
@@ -43,36 +54,36 @@
         </svg>
       </div>
 
-      <!-- Namaste Heading -->
+      <!-- Namaste Warm Heading -->
       <div class="welcome-heading-wrapper anim-step-3">
         <h1 class="namaste-heading">Namaste</h1>
       </div>
 
-      <!-- Brand Identity & Tagline Lockup -->
+      <!-- Brand Reveal with Gradient Wordmark -->
       <div class="welcome-brand anim-step-4">
         <div class="brand-symbol-small" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="32" height="32" rx="8" fill="#047857"/>
             <path d="M16 8V24M8 16H24" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
             <circle cx="23.5" cy="8.5" r="3.5" fill="#10B981" stroke="#047857" stroke-width="1.5"/>
           </svg>
         </div>
         <div class="welcome-brand-text">
-          <span class="welcome-brand-name brand-wordmark">EXPIREDNOT</span>
-          <span class="welcome-brand-subtitle anim-step-5">Pharmacy Inventory Intelligence</span>
-          <span class="welcome-brand-tagline anim-step-5">Track. Alert. Act.</span>
+          <span class="welcome-brand-name brand-wordmark text-gradient-brand">EXPIREDNOT</span>
+          <span class="welcome-brand-subtitle">Pharmacy Inventory Intelligence</span>
+          <span class="welcome-brand-tagline">Track. Alert. Act.</span>
         </div>
       </div>
 
-      <!-- Welcome Message -->
-      <div class="welcome-copy-block anim-step-6">
+      <!-- Welcome Supporting Text with Selective Highlight Gradient -->
+      <div class="welcome-copy-block anim-step-5">
         <p class="namaste-subtext">
-          Welcome to EXPIREDNOT — a smarter way to stay ahead of medicine expiry.
+          A smarter way to <span class="text-gradient-highlight">stay ahead of medicine expiry</span>.
         </p>
       </div>
 
-      <!-- Action Button -->
-      <div class="welcome-action anim-step-7">
+      <!-- Single Primary Action Button with Smooth Transition -->
+      <div class="welcome-action anim-step-6">
         <button id="enterAppBtn" class="btn-welcome shimmer-btn" type="button">
           <span class="shimmer-effect" aria-hidden="true"></span>
           <span class="btn-welcome-text">Welcome</span>
@@ -83,8 +94,8 @@
         </button>
       </div>
 
-      <div class="welcome-footer-note anim-step-8">
-        <span>Empowering pharmacies to prevent medicine expiry & inventory waste</span>
+      <div class="welcome-footer-note anim-step-7">
+        <span>Empowering pharmacies to eliminate medicine waste & financial loss</span>
       </div>
 
     </div>
@@ -95,7 +106,7 @@
        ========================================================================== -->
   <div id="authScreen" class="app-layout view-hidden" aria-label="Sign In and Pharmacy Intelligence">
     
-    <!-- LEFT SIDE: PRODUCT INTRODUCTION -->
+    <!-- LEFT SIDE: PRODUCT OVERVIEW -->
     <section class="intro-section" aria-label="Product Overview">
       <div class="intro-content">
         
@@ -110,7 +121,7 @@
             </div>
             <div class="brand-name-group">
               <div class="brand-title-row">
-                <span class="brand-name brand-wordmark">EXPIREDNOT</span>
+                <span class="brand-name brand-wordmark text-gradient-brand">EXPIREDNOT</span>
                 <span class="brand-badge">PHARMACY INVENTORY INTELLIGENCE</span>
               </div>
               <span class="brand-tagline">Track. Alert. Act.</span>
@@ -137,7 +148,7 @@
             </div>
             <div class="benefit-body">
               <h3 class="benefit-title">Track</h3>
-              <p class="benefit-desc">Know what medicines and batches you have.</p>
+              <p class="benefit-desc">Know what medicines and batches you have in stock.</p>
             </div>
           </div>
 
@@ -150,7 +161,7 @@
             </div>
             <div class="benefit-body">
               <h3 class="benefit-title">Alert</h3>
-              <p class="benefit-desc">See approaching expiry before it becomes critical.</p>
+              <p class="benefit-desc">See approaching expiry before distributor cutoff.</p>
             </div>
           </div>
 
@@ -163,7 +174,7 @@
             </div>
             <div class="benefit-body">
               <h3 class="benefit-title">Act</h3>
-              <p class="benefit-desc">Prioritize at-risk stock and reduce avoidable losses.</p>
+              <p class="benefit-desc">Prioritize at-risk stock and claim returns seamlessly.</p>
             </div>
           </div>
         </div>
@@ -182,7 +193,7 @@
               <div class="pillar-icon">🧾</div>
               <div class="pillar-text">
                 <strong>AI Purchase Bill Extraction</strong>
-                <span>Upload wholesale bills to populate inventory with verified batch & expiry details.</span>
+                <span>Upload wholesale bills to extract medicine, batch, rate, and expiry details.</span>
               </div>
             </div>
 
@@ -208,7 +219,7 @@
       </div>
     </section>
 
-    <!-- RIGHT SIDE: SIMPLIFIED LOGIN CARD (FAST & USABLE IN SECONDS) -->
+    <!-- RIGHT SIDE: SIMPLIFIED LOGIN CARD -->
     <section class="auth-section" aria-label="Sign In">
       <div class="auth-container">
         
@@ -235,7 +246,7 @@
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
             </svg>
-            <span>Continue with Google</span>
+            <span id="googleBtnText">Continue with Google</span>
           </button>
 
           <!-- Divider -->
@@ -320,9 +331,9 @@
               <a href="#forgot-password" class="text-link forgot-link" id="forgotPasswordLink">Forgot password?</a>
             </div>
 
-            <!-- Primary Sign In Button -->
+            <!-- Primary Sign In Button with Dynamic Loading State -->
             <button type="submit" id="signInButton" class="btn-primary onboard-step-6">
-              <span class="btn-text">Sign In</span>
+              <span class="btn-text" id="signInBtnText">Sign In</span>
               <svg class="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
                 <polyline points="12 5 19 12 12 19"></polyline>
@@ -361,7 +372,7 @@
   </div>
 
   <!-- ==========================================================================
-       VIEW 3: SIMPLIFIED 3-STEP PHARMACY ONBOARDING WIZARD (UNDER 60 SECONDS)
+       VIEW 3: SIMPLIFIED ONBOARDING JOURNEY (SIGNUP -> OTP -> PHARMACY SETUP)
        ========================================================================== -->
   <div id="signupScreen" class="signup-layout view-hidden" aria-label="Create Pharmacy Account">
     
@@ -375,9 +386,9 @@
               <circle cx="23.5" cy="8.5" r="3.5" fill="#10B981" stroke="#047857" stroke-width="1.5"/>
             </svg>
           </div>
-          <span class="brand-wordmark">EXPIREDNOT</span>
+          <span class="brand-wordmark text-gradient-brand">EXPIREDNOT</span>
           <span class="nav-sep-dot" aria-hidden="true">•</span>
-          <span class="nav-tagline">Pharmacy Setup</span>
+          <span class="nav-tagline" id="onboardingNavTagline">Account Setup</span>
         </div>
 
         <div class="signup-nav-actions">
@@ -397,27 +408,27 @@
         <section class="signup-wizard-section" aria-label="Registration Steps">
           <div class="signup-wizard-card gradient-border-card">
             
-            <!-- Progress Indicator Bar -->
-            <div class="wizard-progress-header" aria-label="Registration Progress">
+            <!-- Dynamic Step Progress Tracker -->
+            <div class="wizard-progress-header" id="wizardProgressHeader" aria-label="Registration Progress">
               <div class="progress-steps-row">
                 
-                <div class="progress-step-item active" id="pStep1Indicator" data-step="1">
+                <div class="progress-step-item active" id="pStep1Indicator">
                   <span class="step-num-circle">01</span>
-                  <span class="step-label-text">Pharmacy</span>
+                  <span class="step-label-text" id="pStep1Label">Account</span>
                 </div>
 
                 <div class="step-connector" aria-hidden="true"></div>
 
-                <div class="progress-step-item" id="pStep2Indicator" data-step="2">
+                <div class="progress-step-item" id="pStep2Indicator">
                   <span class="step-num-circle">02</span>
-                  <span class="step-label-text">Owner</span>
+                  <span class="step-label-text" id="pStep2Label">Verify Email</span>
                 </div>
 
                 <div class="step-connector" aria-hidden="true"></div>
 
-                <div class="progress-step-item" id="pStep3Indicator" data-step="3">
+                <div class="progress-step-item" id="pStep3Indicator">
                   <span class="step-num-circle">03</span>
-                  <span class="step-label-text">Account</span>
+                  <span class="step-label-text" id="pStep3Label">Pharmacy</span>
                 </div>
 
               </div>
@@ -428,15 +439,172 @@
             </div>
 
             <!-- ==========================================================
-                 STEP 1: PHARMACY (SIMPLE & ESSENTIAL ONLY)
+                 STEP 1: EMAIL & PASSWORD REGISTRATION
                  ========================================================== -->
-            <div class="wizard-step-pane step-active" id="regStep1Pane">
+            <div class="wizard-step-pane step-active" id="paneCreateAccount">
               <div class="step-header">
-                <h3 class="step-heading">Tell us about your pharmacy</h3>
-                <p class="step-subtext">Just a few details to set up your pharmacy workspace.</p>
+                <h3 class="step-heading">Create your account</h3>
+                <p class="step-subtext">Enter your email and create a password to begin.</p>
               </div>
 
-              <form id="step1Form" class="step-form" novalidate>
+              <form id="createAccountForm" class="step-form" novalidate>
+                
+                <div class="form-group">
+                  <label for="regEmailInput" class="form-label">
+                    Email Address <span class="required-mark">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <span class="input-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
+                    </span>
+                    <input 
+                      type="email" 
+                      id="regEmailInput" 
+                      name="regEmailInput" 
+                      class="form-input" 
+                      placeholder="e.g. pharmacist@apollohealthcare.com" 
+                      autocomplete="email" 
+                      required
+                    >
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="regPassInput" class="form-label">
+                    Password <span class="required-mark">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <span class="input-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                    </span>
+                    <input 
+                      type="password" 
+                      id="regPassInput" 
+                      name="regPassInput" 
+                      class="form-input password-input" 
+                      placeholder="Create a password (8+ characters)" 
+                      autocomplete="new-password" 
+                      required
+                    >
+                  </div>
+
+                  <!-- Strength Bar -->
+                  <div class="strength-meter-container">
+                    <div class="strength-bar-track">
+                      <div class="strength-bar-fill" id="strengthBarFill"></div>
+                    </div>
+                    <span class="strength-label-text" id="strengthLabelText">Strength: 8+ characters</span>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="regConfirmPassInput" class="form-label">
+                    Confirm Password <span class="required-mark">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <span class="input-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                    </span>
+                    <input 
+                      type="password" 
+                      id="regConfirmPassInput" 
+                      name="regConfirmPassInput" 
+                      class="form-input password-input" 
+                      placeholder="Confirm your password" 
+                      autocomplete="new-password" 
+                      required
+                    >
+                  </div>
+                </div>
+
+                <div id="signupNotice" class="auth-notice" role="alert" aria-live="polite" hidden></div>
+
+                <div class="wizard-actions-row">
+                  <button type="button" class="btn-secondary" id="signupCancelBtn">
+                    <span>Cancel</span>
+                  </button>
+                  <button type="submit" class="btn-primary" id="sendOtpBtn">
+                    <span id="sendOtpBtnText">Continue to Verification →</span>
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- ==========================================================
+                 STEP 2: EMAIL OTP VERIFICATION (PREMIUM 6-DIGIT INTERFACE)
+                 ========================================================== -->
+            <div class="wizard-step-pane step-hidden" id="paneOtpVerify">
+              <div class="step-header text-center">
+                <div class="otp-shield-badge">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    <polyline points="9 12 11 14 15 10"></polyline>
+                  </svg>
+                </div>
+                <h3 class="step-heading">Verify your email</h3>
+                <p class="step-subtext">
+                  We've sent a 6-digit verification code to <strong id="maskedEmailDisplay">v***@gmail.com</strong>
+                </p>
+              </div>
+
+              <div class="otp-card-body">
+                
+                <!-- 6 Individual Digit Inputs -->
+                <div class="otp-inputs-grid" id="otpInputsGrid">
+                  <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit-box" data-idx="0" autofocus>
+                  <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit-box" data-idx="1">
+                  <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit-box" data-idx="2">
+                  <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit-box" data-idx="3">
+                  <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit-box" data-idx="4">
+                  <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit-box" data-idx="5">
+                </div>
+
+                <div id="otpNotice" class="auth-notice" role="alert" aria-live="polite" hidden></div>
+
+                <button type="button" class="btn-primary btn-full-width" id="verifyOtpBtn">
+                  <span id="verifyOtpBtnText">Verify Email →</span>
+                </button>
+
+                <!-- Resend Cooldown Handler -->
+                <div class="resend-otp-box">
+                  <span>Didn't receive the code?</span>
+                  <button type="button" class="btn-resend-otp" id="resendOtpBtn" disabled>
+                    <span id="resendTimerText">Resend in 30s</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- ==========================================================
+                 STEP 3: PHARMACY DETAILS (ESSENTIALS ONLY)
+                 ========================================================== -->
+            <div class="wizard-step-pane step-hidden" id="panePharmacyDetails">
+              <div class="step-header">
+                <h3 class="step-heading">Set up your pharmacy</h3>
+                <p class="step-subtext">Tell us about your pharmacy shop to configure your workspace.</p>
+              </div>
+
+              <!-- Google Linked Indicator (if coming via Google) -->
+              <div class="google-connected-pill" id="googleConnectedPill" hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>Google account verified: <strong id="googleEmailConnectedDisplay">user@gmail.com</strong></span>
+              </div>
+
+              <form id="pharmacyDetailsForm" class="step-form" novalidate>
                 
                 <div class="form-group">
                   <label for="regShopName" class="form-label">
@@ -459,12 +627,11 @@
                       required
                     >
                   </div>
-                  <span class="field-error-msg" id="errRegShopName" hidden>Please enter your shop name.</span>
                 </div>
 
                 <div class="form-group">
                   <label for="regDlNumber" class="form-label">
-                    Drug Licence No. <span class="required-mark">*</span>
+                    Drug Licence No. (D.L. No.) <span class="required-mark">*</span>
                   </label>
                   <div class="input-wrapper">
                     <span class="input-icon" aria-hidden="true">
@@ -478,13 +645,12 @@
                       id="regDlNumber" 
                       name="regDlNumber" 
                       class="form-input mono-input" 
-                      placeholder="Enter your D.L. number" 
+                      placeholder="e.g. DL-20B/94812" 
                       autocomplete="off" 
                       required
                     >
                   </div>
-                  <span class="field-helper-text">Used to identify your pharmacy profile.</span>
-                  <span class="field-error-msg" id="errRegDlNumber" hidden>Please enter your D.L. number.</span>
+                  <span class="field-helper-text">Official licence identifier for your pharmacy.</span>
                 </div>
 
                 <div class="form-row-2col">
@@ -502,12 +668,11 @@
                         <option value="Other">Other</option>
                       </select>
                     </div>
-                    <span class="field-error-msg" id="errRegPharmacyType" hidden>Please select pharmacy type.</span>
                   </div>
 
                   <div class="form-group">
                     <label for="regPharmacyPhone" class="form-label">
-                      Pharmacy Mobile Number <span class="required-mark">*</span>
+                      Pharmacy Contact Mobile <span class="required-mark">*</span>
                     </label>
                     <div class="phone-input-group">
                       <span class="country-prefix">+91</span>
@@ -516,21 +681,20 @@
                         id="regPharmacyPhone" 
                         name="regPharmacyPhone" 
                         class="form-input phone-field" 
-                        placeholder="Enter pharmacy contact number" 
+                        placeholder="10-digit mobile" 
                         maxlength="10"
                         autocomplete="tel" 
                         required
                       >
                     </div>
-                    <span class="field-error-msg" id="errRegPharmacyPhone" hidden>Please enter a valid 10-digit mobile number.</span>
                   </div>
                 </div>
 
                 <div class="wizard-actions-row">
-                  <button type="button" class="btn-secondary" id="step1BackBtn">
-                    <span>Cancel</span>
+                  <button type="button" class="btn-secondary" id="pharmacyDetailsBackBtn">
+                    <span>Back</span>
                   </button>
-                  <button type="submit" class="btn-primary" id="step1NextBtn">
+                  <button type="submit" class="btn-primary" id="pharmacyDetailsNextBtn">
                     <span>Continue →</span>
                   </button>
                 </div>
@@ -539,15 +703,15 @@
             </div>
 
             <!-- ==========================================================
-                 STEP 2: OWNER (RESPONSIBLE PERSON)
+                 STEP 4: OWNER / PHARMACIST RESPONSIBLE PERSON
                  ========================================================== -->
-            <div class="wizard-step-pane step-hidden" id="regStep2Pane">
+            <div class="wizard-step-pane step-hidden" id="paneOwnerDetails">
               <div class="step-header">
                 <h3 class="step-heading">Who manages this pharmacy?</h3>
-                <p class="step-subtext">Tell us who will manage the EXPIREDNOT account.</p>
+                <p class="step-subtext">Responsible pharmacist or store owner details.</p>
               </div>
 
-              <form id="step2Form" class="step-form" novalidate>
+              <form id="ownerDetailsForm" class="step-form" novalidate>
                 
                 <div class="form-group">
                   <label for="regOwnerName" class="form-label">
@@ -570,7 +734,6 @@
                       required
                     >
                   </div>
-                  <span class="field-error-msg" id="errRegOwnerName" hidden>Please enter your full name.</span>
                 </div>
 
                 <div class="form-row-2col">
@@ -587,7 +750,6 @@
                         <option value="Inventory Manager">Inventory Manager</option>
                       </select>
                     </div>
-                    <span class="field-error-msg" id="errRegOwnerRole" hidden>Please select role.</span>
                   </div>
 
                   <div class="form-group">
@@ -601,22 +763,21 @@
                         id="regOwnerMobile" 
                         name="regOwnerMobile" 
                         class="form-input phone-field" 
-                        placeholder="Enter mobile number" 
+                        placeholder="10-digit mobile" 
                         maxlength="10" 
                         autocomplete="tel" 
                         required
                       >
                     </div>
-                    <span class="field-error-msg" id="errRegOwnerMobile" hidden>Please enter a valid 10-digit mobile number.</span>
                   </div>
                 </div>
 
                 <div class="wizard-actions-row">
-                  <button type="button" class="btn-secondary" id="step2BackBtn">
+                  <button type="button" class="btn-secondary" id="ownerDetailsBackBtn">
                     <span>Back</span>
                   </button>
-                  <button type="submit" class="btn-primary" id="step2NextBtn">
-                    <span>Continue →</span>
+                  <button type="submit" class="btn-primary" id="finishSetupBtn">
+                    <span id="finishSetupBtnText">Finish Setup →</span>
                   </button>
                 </div>
 
@@ -624,125 +785,13 @@
             </div>
 
             <!-- ==========================================================
-                 STEP 3: ACCOUNT & SECURITY
+                 STEP 5: ONBOARDING SUCCESS SCREEN
                  ========================================================== -->
-            <div class="wizard-step-pane step-hidden" id="regStep3Pane">
-              <div class="step-header">
-                <h3 class="step-heading">Secure your account</h3>
-                <p class="step-subtext" id="regStep3Subtext">Create your credentials to access your pharmacy inventory.</p>
-              </div>
-
-              <!-- Google Connected Notice (if coming via Google) -->
-              <div class="google-connected-pill" id="googleConnectedPill" hidden>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Google account connected: <strong id="googleEmailConnectedDisplay">user@gmail.com</strong></span>
-              </div>
-
-              <form id="step3Form" class="step-form" novalidate>
-                
-                <div class="form-group" id="regEmailGroup">
-                  <label for="regAccountEmail" class="form-label">
-                    Email Address <span class="required-mark">*</span>
-                  </label>
-                  <div class="input-wrapper">
-                    <span class="input-icon" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                      </svg>
-                    </span>
-                    <input 
-                      type="email" 
-                      id="regAccountEmail" 
-                      name="regAccountEmail" 
-                      class="form-input" 
-                      placeholder="Enter your email" 
-                      autocomplete="email" 
-                      required
-                    >
-                  </div>
-                  <span class="field-error-msg" id="errRegAccountEmail" hidden>Please enter a valid email address.</span>
-                </div>
-
-                <div class="form-group" id="regPasswordGroup">
-                  <label for="regPassword" class="form-label">
-                    Password <span class="required-mark">*</span>
-                  </label>
-                  <div class="input-wrapper">
-                    <span class="input-icon" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                    </span>
-                    <input 
-                      type="password" 
-                      id="regPassword" 
-                      name="regPassword" 
-                      class="form-input password-input" 
-                      placeholder="Create a password (8+ characters)" 
-                      autocomplete="new-password" 
-                      required
-                    >
-                  </div>
-
-                  <!-- Strength Bar -->
-                  <div class="strength-meter-container">
-                    <div class="strength-bar-track">
-                      <div class="strength-bar-fill" id="strengthBarFill"></div>
-                    </div>
-                    <span class="strength-label-text" id="strengthLabelText">Strength: 8+ characters</span>
-                  </div>
-                  <span class="field-error-msg" id="errRegPassword" hidden>Password must be at least 8 characters.</span>
-                </div>
-
-                <div class="form-group" id="regConfirmPasswordGroup">
-                  <label for="regConfirmPassword" class="form-label">
-                    Confirm Password <span class="required-mark">*</span>
-                  </label>
-                  <div class="input-wrapper">
-                    <span class="input-icon" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                    </span>
-                    <input 
-                      type="password" 
-                      id="regConfirmPassword" 
-                      name="regConfirmPassword" 
-                      class="form-input password-input" 
-                      placeholder="Confirm your password" 
-                      autocomplete="new-password" 
-                      required
-                    >
-                  </div>
-                  <span class="field-error-msg" id="errRegConfirmPassword" hidden>Passwords do not match.</span>
-                </div>
-
-                <div class="wizard-actions-row">
-                  <button type="button" class="btn-secondary" id="step3BackBtn">
-                    <span>Back</span>
-                  </button>
-                  <button type="submit" class="btn-primary" id="step3SubmitBtn">
-                    <span>Create My Pharmacy Account →</span>
-                  </button>
-                </div>
-
-              </form>
-            </div>
-
-            <!-- ==========================================================
-                 STEP 4: SIGNUP SUCCESS
-                 ========================================================== -->
-            <div class="wizard-step-pane step-hidden" id="regStepSuccessPane">
+            <div class="wizard-step-pane step-hidden" id="paneOnboardingSuccess">
               <div class="success-screen-container">
                 
                 <div class="success-icon-badge">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
                 </div>
@@ -769,7 +818,7 @@
   </div>
 
   <!-- ==========================================================================
-       VIEW 4: REDESIGNED PRODUCTION WORKSPACE WITH VERTICAL LEFT SIDEBAR
+       VIEW 4: PROTECTED PRODUCTION WORKSPACE (VERTICAL LEFT SIDEBAR)
        ========================================================================== -->
   <div id="dashboardScreen" class="dashboard-layout view-hidden" aria-label="EXPIREDNOT Pharmacy Workspace">
     
@@ -797,7 +846,7 @@
           </button>
 
           <div class="topbar-brand desktop-hidden">
-            <span class="brand-wordmark">EXPIREDNOT</span>
+            <span class="brand-wordmark text-gradient-brand">EXPIREDNOT</span>
           </div>
 
           <div class="active-pharmacy-pill">
@@ -874,7 +923,7 @@
             </svg>
           </div>
           <div class="sidebar-brand-text">
-            <span class="brand-wordmark">EXPIREDNOT</span>
+            <span class="brand-wordmark text-gradient-brand">EXPIREDNOT</span>
             <span class="sidebar-pharmacy-label">Workspace</span>
           </div>
         </div>
@@ -1839,7 +1888,7 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 4: GOOGLE OAUTH MODAL (NEW VS EXISTING USER ROUTING)
+       MODAL 4: GOOGLE OAUTH MODAL
        ========================================================================== -->
   <div id="googleModal" class="google-modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="googleModalTitle">
     <div class="google-modal-backdrop" id="googleModalBackdrop"></div>
@@ -1858,7 +1907,7 @@
 
       <div class="google-accounts-list" id="googleAccountsList">
         
-        <!-- Preconfigured Account 1 -->
+        <!-- Account 1: Registered User -->
         <button type="button" class="google-account-item" data-name="Rajesh Sharma" data-email="rajesh.sharma@medicarechemists.com" data-shop="Medicare Chemist & Druggist" data-dl="DL-20B/94812">
           <div class="google-avatar avatar-emerald">RS</div>
           <div class="google-account-meta">
@@ -1868,7 +1917,7 @@
           <span class="acc-badge">Registered</span>
         </button>
 
-        <!-- New User Google Account 2 -->
+        <!-- Account 2: New Google Chemist User -->
         <button type="button" class="google-account-item" data-name="Sunil Verma" data-email="sunil.chemist@gmail.com" data-new="true">
           <div class="google-avatar avatar-blue">SV</div>
           <div class="google-account-meta">
@@ -1878,7 +1927,7 @@
           <span class="acc-badge new-user">New Setup</span>
         </button>
 
-        <!-- Custom Account Entry -->
+        <!-- Custom Google Account -->
         <div class="custom-google-box">
           <button type="button" class="google-account-item btn-another-acc" id="useAnotherGoogleBtn">
             <div class="google-avatar avatar-gray">
@@ -1902,12 +1951,12 @@
 
       <div class="google-loading-state" id="googleLoadingState" hidden>
         <div class="google-spinner"></div>
-        <span id="googleLoadingText">Authenticating with Google...</span>
+        <span id="googleLoadingText">Connecting to Google...</span>
       </div>
 
       <div class="google-modal-footer">
         <p class="google-policy-text">
-          To continue, Google will securely share your name, email address, and language preference with EXPIREDNOT.
+          To continue, Google will securely share your name and email address with EXPIREDNOT.
         </p>
         <button type="button" class="btn-secondary" id="closeGoogleModalBtn">Cancel</button>
       </div>
