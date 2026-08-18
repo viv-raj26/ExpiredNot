@@ -12,11 +12,25 @@ import hmac
 import hashlib
 import secrets
 import sqlite3
+import threading
 import urllib.request
 import urllib.parse
 import mimetypes
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from email.message import EmailMessage
+
+# Auto-load .env file if present
+ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if os.path.exists(ENV_PATH):
+    try:
+        with open(ENV_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except Exception as e:
+        print(f"Note: Could not load .env: {e}")
 
 PORT = int(os.environ.get("PORT", 3000))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -750,18 +764,17 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
                 conn.commit()
                 
-            # Send real email via SMTP if configured
-            email_sent = send_email_otp(email, otp_code)
+            # Send real email via SMTP in background thread (non-blocking)
+            threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
             
             # Log OTP securely to server console for testing/verification
             print(f"[SECURITY OTP DISPATCH] 6-Digit Email OTP for {email}: {otp_code} (Expires in 5m)", file=sys.stdout)
             
             return self._send_json({
                 "success": True,
-                "message": "Verification code sent to your email." if email_sent else "Verification code generated and sent to your email.",
+                "message": "Verification code sent to your email.",
                 "masked_email": mask_email(email),
-                "expires_in_seconds": 300,
-                "email_dispatched": email_sent
+                "expires_in_seconds": 300
             })
 
         # ----------------------------------------------------------------------
@@ -847,12 +860,11 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 ''', (email, new_h, new_salt, expires_at, now))
                 conn.commit()
                 
-            email_sent = send_email_otp(email, new_otp)
+            threading.Thread(target=send_email_otp, args=(email, new_otp), daemon=True).start()
             print(f"[SECURITY OTP RESEND] New 6-Digit OTP for {email}: {new_otp}", file=sys.stdout)
             return self._send_json({
                 "success": True, 
-                "message": "New verification code sent to your email." if email_sent else "New verification code generated and sent to your email.",
-                "email_dispatched": email_sent
+                "message": "New verification code sent to your email."
             })
 
         # ----------------------------------------------------------------------
@@ -894,7 +906,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 ''', (email, otp_h, otp_salt, expires_at, now))
                 conn.commit()
                 
-            email_sent = send_email_otp(email, otp_code)
+            threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
             print(f"[SECURITY LOGIN OTP] Dispatched code for {email}: {otp_code}", file=sys.stdout)
             return self._send_json({
                 "success": True,
@@ -998,7 +1010,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 ''', (email, otp_h, otp_salt, expires_at, now))
                 conn.commit()
                 
-            email_sent = send_email_otp(email, otp_code)
+            threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
             print(f"[SECURITY GOOGLE OTP] Sent 6-digit code for {email}: {otp_code}", file=sys.stdout)
             
             return self._send_json({
@@ -1144,7 +1156,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
 
 def run_server():
     server_address = ('', PORT)
-    httpd = HTTPServer(server_address, ExpiredNotHandler)
+    httpd = ThreadingHTTPServer(server_address, ExpiredNotHandler)
     print(f"============================================================")
     print(f" EXPIREDNOT Production Server running at http://localhost:{PORT}")
     print(f" Database: {DB_PATH}")
