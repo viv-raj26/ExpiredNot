@@ -429,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (googleAuthForm) googleAuthForm.hidden = true;
     if (googleLoadingState) {
       googleLoadingState.hidden = false;
-      if (googleLoadingText) googleLoadingText.textContent = `Connecting to Google (${email})…`;
+      if (googleLoadingText) googleLoadingText.textContent = `Dispatching verification code to ${email}…`;
     }
 
     try {
@@ -447,39 +447,27 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      sessionToken = data.session_token;
-      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+      pendingRegistration.email = email;
+      pendingRegistration.name = name;
+      pendingRegistration.isGoogle = true;
 
-      if (data.existing_user) {
-        currentPharmacy = data.user;
-        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-        await loadPharmacyData(currentPharmacy.id);
-        showScreen('dashboard');
-      } else {
-        // New Google user -> Verified by Google, skip password & OTP, fast-track to Pharmacy Details
-        const inferredName = name || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        googleConnectedUser = { name: inferredName, email };
-        pendingRegistration = {
-          email: email,
-          password: 'GOOGLE_AUTH_SESSION',
-          emailVerified: true
-        };
+      const maskedDisplay = document.getElementById('maskedEmailDisplay');
+      if (maskedDisplay) maskedDisplay.textContent = data.masked_email || maskEmail(email);
 
-        showScreen('signup');
-        
-        const googleConnectedPill = document.getElementById('googleConnectedPill');
-        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
-        const regOwnerName = document.getElementById('regOwnerName');
+      startResendTimer();
+      showScreen('signup');
+      goToOnboardingStep(2);
+      clearOtpBoxes();
 
-        if (googleConnectedPill) googleConnectedPill.hidden = false;
-        if (googleEmailDisplay) googleEmailDisplay.textContent = email;
-        if (regOwnerName) regOwnerName.value = inferredName;
-
-        goToOnboardingStep(3); // Direct to Pharmacy Details
+      const noticeEl = document.getElementById('otpNotice');
+      if (noticeEl) {
+        noticeEl.className = 'auth-notice info';
+        noticeEl.textContent = `A 6-digit verification code has been dispatched directly to your Google email: ${data.masked_email || maskEmail(email)}. Check your inbox.`;
+        noticeEl.hidden = false;
       }
     } catch (e) {
       closeGoogleModal();
-      showAuthNotice('Failed to connect with Google.', 'error');
+      showAuthNotice('Failed to connect with Google. Please try again.', 'error');
     }
   };
 
@@ -775,26 +763,27 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPharmacy = data.user;
         sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
 
-        showOtpNotice('Email verified ✓', 'success');
-
-        setTimeout(() => {
-          goToOnboardingStep(3); // Proceed to Pharmacy Details
-        }, 400);
-      } catch (err) {
-        if (pendingRegistration._localOtp && enteredCode === pendingRegistration._localOtp) {
-          if (verifyOtpBtn) verifyOtpBtn.disabled = false;
-          if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
-          currentPharmacy = {
-            id: 'USR_' + Date.now(),
-            email: pendingRegistration.email,
-            email_verified: 1,
-            setup_completed: 0
-          };
-          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        if (data.user && data.user.setup_completed) {
+          showOtpNotice('Verification successful ✓ Logging in…', 'success');
+          setTimeout(async () => {
+            await loadPharmacyData(currentPharmacy.id);
+            showScreen('dashboard');
+          }, 350);
+        } else {
           showOtpNotice('Email verified ✓', 'success');
-          setTimeout(() => goToOnboardingStep(3), 350);
-          return;
+          setTimeout(() => {
+            if (pendingRegistration.isGoogle) {
+              const googleConnectedPill = document.getElementById('googleConnectedPill');
+              const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+              const regOwnerName = document.getElementById('regOwnerName');
+              if (googleConnectedPill) googleConnectedPill.hidden = false;
+              if (googleEmailDisplay) googleEmailDisplay.textContent = pendingRegistration.email;
+              if (regOwnerName && pendingRegistration.name) regOwnerName.value = pendingRegistration.name;
+            }
+            goToOnboardingStep(3); // Proceed to Pharmacy Details
+          }, 350);
         }
+      } catch (err) {
         if (verifyOtpBtn) verifyOtpBtn.disabled = false;
         if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
         showOtpNotice('Connection error during verification.', 'error');
@@ -802,36 +791,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Step 3: Pharmacy Details Form
+  // Step 3: Pharmacy Details Form (With Physical Shop Address)
   const pharmacyDetailsForm = document.getElementById('pharmacyDetailsForm');
   const regShopName = document.getElementById('regShopName');
   const regDlNumber = document.getElementById('regDlNumber');
+  const regShopAddress = document.getElementById('regShopAddress');
+  const regCity = document.getElementById('regCity');
+  const regState = document.getElementById('regState');
+  const regPincode = document.getElementById('regPincode');
   const regPharmacyType = document.getElementById('regPharmacyType');
   const regPharmacyPhone = document.getElementById('regPharmacyPhone');
   const pharmacyDetailsBackBtn = document.getElementById('pharmacyDetailsBackBtn');
 
   if (pharmacyDetailsBackBtn) {
     pharmacyDetailsBackBtn.addEventListener('click', () => {
-      if (googleConnectedUser) {
-        showScreen('auth');
-      } else {
-        goToOnboardingStep(2);
-      }
+      goToOnboardingStep(2);
     });
   }
 
   if (pharmacyDetailsForm) {
     pharmacyDetailsForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!regShopName.value.trim() || !regDlNumber.value.trim() || !regPharmacyType.value || !regPharmacyPhone.value.trim()) {
-        alert('Please fill all required pharmacy details.');
+      const sName = regShopName ? regShopName.value.trim() : '';
+      const dlNo = regDlNumber ? regDlNumber.value.trim() : '';
+      const sAddr = regShopAddress ? regShopAddress.value.trim() : '';
+      const sCity = regCity ? regCity.value.trim() : '';
+      const sState = regState ? regState.value.trim() : '';
+      const sPin = regPincode ? regPincode.value.trim() : '';
+      const pType = regPharmacyType ? regPharmacyType.value : '';
+      const pPhone = regPharmacyPhone ? regPharmacyPhone.value.trim() : '';
+
+      if (!sName || !dlNo || !sAddr || !sCity || !sState || !sPin || !pType || !pPhone) {
+        alert('Please fill all required pharmacy details including shop full address.');
         return;
       }
 
-      pendingRegistration.shopName = regShopName.value.trim();
-      pendingRegistration.dlNumber = regDlNumber.value.trim();
-      pendingRegistration.pharmacyType = regPharmacyType.value;
-      pendingRegistration.pharmacyPhone = regPharmacyPhone.value.trim();
+      pendingRegistration.shopName = sName;
+      pendingRegistration.dlNumber = dlNo;
+      pendingRegistration.shopAddress = sAddr;
+      pendingRegistration.city = sCity;
+      pendingRegistration.state = sState;
+      pendingRegistration.pincode = sPin;
+      pendingRegistration.pharmacyType = pType;
+      pendingRegistration.pharmacyPhone = pPhone;
 
       const regOwnerMobile = document.getElementById('regOwnerMobile');
       if (regOwnerMobile && !regOwnerMobile.value) {
@@ -875,6 +877,10 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({
             shop_name: pendingRegistration.shopName,
             dl_number: pendingRegistration.dlNumber,
+            shop_address: pendingRegistration.shopAddress,
+            city: pendingRegistration.city,
+            state: pendingRegistration.state,
+            pincode: pendingRegistration.pincode,
             pharmacy_type: pendingRegistration.pharmacyType,
             owner_name: pendingRegistration.ownerName,
             role: pendingRegistration.role,
@@ -1062,14 +1068,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const greetingUserTitle = document.getElementById('greetingUserTitle');
     const setShopName = document.getElementById('setShopName');
     const setDlNumber = document.getElementById('setDlNumber');
+    const setShopAddress = document.getElementById('setShopAddress');
     const setOwnerName = document.getElementById('setOwnerName');
     const userAvatarInitials = document.getElementById('userAvatarInitials');
+
+    const sAddr = currentPharmacy.shop_address || currentPharmacy.shopAddress || '';
+    const sCity = currentPharmacy.city || '';
+    const sState = currentPharmacy.state || '';
+    const sPin = currentPharmacy.pincode || '';
+    const fullAddr = [sAddr, sCity, sState, sPin].filter(Boolean).join(', ');
 
     if (activeShopName) activeShopName.textContent = sName;
     if (activeDlNumber) activeDlNumber.textContent = `D.L. No. ${sDl}`;
     if (greetingUserTitle) greetingUserTitle.textContent = `Good morning, ${oName}`;
     if (setShopName) setShopName.value = sName;
     if (setDlNumber) setDlNumber.value = sDl;
+    if (setShopAddress) setShopAddress.value = fullAddr || 'Not specified';
     if (setOwnerName) setOwnerName.value = `${oName} (${oRole})`;
 
     if (userAvatarInitials) {
