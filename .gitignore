@@ -1,7 +1,7 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+uploads/bills/*
+!uploads/bills/.gitkeep
 .DS_Store
-Thumbs.db
-node_modules/
-*.log
-.env
-.idea/
-.vscode/

@@ -10,6 +10,9 @@
   <!-- Favicon SVG -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23059669'/%3E%3Cpath d='M16 7v18M7 16h18' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='9' r='3' fill='%23fbbf24'/%3E%3C/svg%3E">
 
+  <!-- Google Identity Services (Official Google OAuth SDK) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <!-- Google Fonts: Outfit (Brand & Headings), Plus Jakarta Sans (Body & UI), JetBrains Mono (Codes) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com">
@@ -20,28 +23,18 @@
 <body>
   
   <!-- ==========================================================================
-       VIEW 1: CINEMATIC WELCOME SCREEN (WARM INDIAN WELCOME + HEALTHCARE)
+       VIEW 1: CINEMATIC WELCOME SCREEN (WARM INDIAN WELCOME + PHARMACY BACKGROUND)
        ========================================================================== -->
   <main id="welcomeScreen" class="welcome-screen view-active" aria-label="Welcome to EXPIREDNOT">
     
     <!-- Multi-Color Ambient Lighting Background -->
     <div class="welcome-ambient-glow" aria-hidden="true"></div>
     <div class="welcome-ambient-glow-secondary" aria-hidden="true"></div>
-    
-    <div class="welcome-faint-line-art" aria-hidden="true">
-      <svg width="100%" height="100%" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="220" cy="160" r="140" stroke="rgba(5, 150, 105, 0.08)" stroke-width="1.5" stroke-dasharray="6 6"/>
-        <path d="M1080 180C960 340 1120 500 1000 680" stroke="rgba(13, 148, 136, 0.09)" stroke-width="2"/>
-        <rect x="140" y="560" width="90" height="90" rx="24" stroke="rgba(5, 150, 105, 0.07)" stroke-width="1.5"/>
-        <circle cx="950" cy="480" r="6" fill="rgba(14, 165, 233, 0.25)"/>
-        <circle cx="280" cy="620" r="8" fill="rgba(245, 158, 11, 0.2)"/>
-      </svg>
-    </div>
 
-    <div class="welcome-container anim-fade-card gradient-border-card colorful-card-glow">
+    <div class="welcome-container anim-reveal-composition gradient-border-card colorful-card-glow">
       
       <!-- Refined Namaste Icon Badge with Soft Glow -->
-      <div class="namaste-badge anim-namaste" aria-hidden="true">
+      <div class="namaste-badge" aria-hidden="true">
         <svg class="namaste-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2.75V15.25" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
           <path d="M9.5 5.5C8.75 7.15 8 9.3 8 11.5C8 13.7 8.75 15.2 9.8 16.3" stroke="url(#emeraldGradient)" stroke-width="1.9" stroke-linecap="round"/>
@@ -60,12 +53,12 @@
       </div>
 
       <!-- Namaste Warm Heading -->
-      <div class="welcome-heading-wrapper anim-step-3">
+      <div class="welcome-heading-wrapper">
         <h1 class="namaste-heading text-gradient-namaste">Namaste</h1>
       </div>
 
       <!-- Brand Reveal with Gradient Wordmark -->
-      <div class="welcome-brand anim-step-4">
+      <div class="welcome-brand">
         <div class="brand-symbol-small" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="32" height="32" rx="8" fill="#047857"/>
@@ -81,14 +74,14 @@
       </div>
 
       <!-- Welcome Supporting Text with Selective Highlight Gradient -->
-      <div class="welcome-copy-block anim-step-5">
+      <div class="welcome-copy-block">
         <p class="namaste-subtext">
           A smarter way to <span class="text-gradient-highlight">stay ahead of medicine expiry</span>.
         </p>
       </div>
 
       <!-- Single Primary Action Button with Smooth Transition -->
-      <div class="welcome-action anim-step-6">
+      <div class="welcome-action">
         <button id="enterAppBtn" class="btn-welcome shimmer-btn" type="button">
           <span class="shimmer-effect" aria-hidden="true"></span>
           <span class="btn-welcome-text">Welcome</span>
@@ -99,7 +92,7 @@
         </button>
       </div>
 
-      <div class="welcome-footer-note anim-step-7">
+      <div class="welcome-footer-note">
         <span>Empowering pharmacies to eliminate medicine waste & financial loss</span>
       </div>
 
@@ -197,8 +190,8 @@
             <div class="pillar-item">
               <div class="pillar-icon">🧾</div>
               <div class="pillar-text">
-                <strong>AI Purchase Bill Extraction</strong>
-                <span>Upload wholesale bills to extract medicine, batch, rate, and expiry details.</span>
+                <strong>Smart Bill Capture</strong>
+                <span>Upload wholesale bills to organize medicines, batches, purchase rates, and expiry horizons.</span>
               </div>
             </div>
 
@@ -243,7 +236,7 @@
             <p class="auth-subtitle">Sign in to your pharmacy workspace.</p>
           </div>
 
-          <!-- Primary Option: Continue with Google (Instant Clean OAuth) -->
+          <!-- Primary Option: Continue with Google (Official Google OAuth with Account Chooser) -->
           <button type="button" id="googleSignInBtn" class="btn-google prominent-google-btn onboard-step-2">
             <svg class="google-icon" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -546,7 +539,7 @@
             </div>
 
             <!-- ==========================================================
-                 STEP 2: EMAIL OTP VERIFICATION (PREMIUM 6-DIGIT INTERFACE)
+                 STEP 2: EMAIL OTP VERIFICATION (SECURE 6-DIGIT INTERFACE)
                  ========================================================== -->
             <div class="wizard-step-pane step-hidden" id="paneOtpVerify">
               <div class="step-header text-center">
@@ -558,7 +551,7 @@
                 </div>
                 <h3 class="step-heading">Verify your email</h3>
                 <p class="step-subtext">
-                  We've sent a 6-digit verification code to <strong id="maskedEmailDisplay" class="text-gradient-highlight">v***@gmail.com</strong>
+                  We've sent a verification code to <strong id="maskedEmailDisplay" class="text-gradient-highlight">v***@gmail.com</strong>
                 </p>
               </div>
 
@@ -803,7 +796,7 @@
 
                 <div class="success-content">
                   <h3 class="success-heading">You're all set.</h3>
-                  <p class="success-pharmacy-welcome" id="successWelcomeShopTitle">Welcome to EXPIREDNOT, Apollo Chemist</p>
+                  <p class="success-pharmacy-welcome" id="successWelcomeShopTitle">Welcome to EXPIREDNOT</p>
                   <p class="success-subtext">Your pharmacy workspace is ready. Let's start organizing your inventory.</p>
                 </div>
 
@@ -950,7 +943,7 @@
           <button type="button" class="sidebar-nav-btn sidebar-prominent-btn" data-tab="bills">
             <span class="sidebar-icon">📄</span>
             <span class="sidebar-label">Upload Bills</span>
-            <span class="sidebar-badge-highlight">AI Ingestion</span>
+            <span class="sidebar-badge-highlight">Bill Intelligence</span>
           </button>
 
           <button type="button" class="sidebar-nav-btn" data-tab="inventory">
@@ -1136,7 +1129,7 @@
               <div class="empty-banner-content">
                 <h3 class="empty-heading text-gradient-brand">Your inventory is waiting to be organized.</h3>
                 <p class="empty-subtext">
-                  Upload your first purchase bill and EXPIREDNOT will turn it into a structured medicine inventory with automated batch tracking and FEFO expiry guidance.
+                  Upload your first purchase bill and EXPIREDNOT will organize it into a structured medicine inventory with automated batch tracking and FEFO expiry guidance.
                 </p>
               </div>
 
@@ -1215,17 +1208,41 @@
         </section>
 
         <!-- ====================================================================
-             PANEL 2: DEDICATED UPLOAD PURCHASE BILLS HUB (AI/OCR PIPELINE)
+             PANEL 2: DEDICATED SMART BILL CAPTURE HUB
              ==================================================================== -->
-        <section class="content-panel panel-hidden" id="paneBills" aria-label="Upload Purchase Bills">
+        <section class="content-panel panel-hidden" id="paneBills" aria-label="Smart Bill Capture">
           
           <div class="section-intro-header">
-            <h2 class="section-heading text-gradient-brand">Turn your purchase bill into inventory.</h2>
-            <p class="section-subtext">Upload a pharmacy invoice and EXPIREDNOT will extract the medicine, batch, quantity, price, and expiry information for you.</p>
+            <h2 class="section-heading text-gradient-brand">Smart Bill Capture</h2>
+            <p class="section-subtext">Upload a purchase bill and EXPIREDNOT will organize the information into a structured pharmacy record.</p>
+          </div>
+
+          <!-- Processing State Pipeline Indicator -->
+          <div class="bill-pipeline-indicator" id="billPipelineIndicator" hidden>
+            <div class="pipeline-step active" id="pipeStep1">
+              <span class="pipeline-step-circle">1</span>
+              <span>Uploading</span>
+            </div>
+            <div class="pipeline-step" id="pipeStep2">
+              <span class="pipeline-step-circle">2</span>
+              <span>Reading document</span>
+            </div>
+            <div class="pipeline-step" id="pipeStep3">
+              <span class="pipeline-step-circle">3</span>
+              <span>Extracting bill information</span>
+            </div>
+            <div class="pipeline-step" id="pipeStep4">
+              <span class="pipeline-step-circle">4</span>
+              <span>Checking extracted fields</span>
+            </div>
+            <div class="pipeline-step" id="pipeStep5">
+              <span class="pipeline-step-circle">5</span>
+              <span>Ready for review</span>
+            </div>
           </div>
 
           <!-- Bill Dropzone Area -->
-          <div class="bill-dropzone-wrapper gradient-border-card colorful-card-glow">
+          <div class="bill-dropzone-wrapper gradient-border-card colorful-card-glow" id="billDropzoneWrapper">
             
             <div class="dropzone-box" id="billDropzone">
               <input type="file" id="billFileInput" accept="image/*,application/pdf" class="file-input-hidden">
@@ -1239,8 +1256,8 @@
               </div>
 
               <div class="dropzone-text-group">
-                <h4 class="dropzone-title">Drag & Drop Your Bill Here</h4>
-                <p class="dropzone-sub">PDF, JPG, JPEG or PNG</p>
+                <h4 class="dropzone-title">Drag & Drop Your Purchase Invoice Here</h4>
+                <p class="dropzone-sub">PDF, JPG, JPEG or PNG (Real Wholesale Documents)</p>
               </div>
 
               <div class="dropzone-actions-row">
@@ -1250,33 +1267,30 @@
                 <button type="button" class="btn-secondary" id="cameraUploadBtn">
                   <span>📷 Take Photo / Scan</span>
                 </button>
-              </div>
-            </div>
-
-            <!-- Quick Test Invoices for Demonstrations -->
-            <div class="sample-bills-bar">
-              <span class="sample-bills-label">Try with sample real distributor invoices:</span>
-              <div class="sample-bills-pills">
-                <button type="button" class="sample-bill-btn" data-sample="cipla">
-                  📄 Cipla Healthcare Invoice (#CP-8492)
-                </button>
-                <button type="button" class="sample-bill-btn" data-sample="sunpharma">
-                  📄 Sun Pharma Stockist Bill (#SP-1092)
-                </button>
-                <button type="button" class="sample-bill-btn" data-sample="alkem">
-                  📄 Alkem Labs Distributor Bill (#ALK-3810)
+                <button type="button" class="btn-secondary" id="manualEntryFallbackBtn">
+                  <span>✏️ Enter Details Manually</span>
                 </button>
               </div>
             </div>
 
           </div>
 
-          <!-- SIDE-BY-SIDE OCR EXTRACTION & VERIFICATION AREA -->
+          <!-- Extraction Failure Alert & Fallback -->
+          <div id="billExtractionAlert" class="auth-notice error" style="margin-top: 1rem;" hidden>
+            <strong id="billExtractionAlertTitle">Unable to confidently extract this bill. Please review manually.</strong>
+            <p id="billExtractionAlertDesc" style="font-size: 0.75rem; margin: 0.25rem 0;">The document text was partially unreadable or requires manual verification.</p>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <button type="button" class="btn-secondary" style="height: 30px; font-size: 0.75rem;" id="retryBillUploadBtn">Try Again</button>
+              <button type="button" class="btn-primary" style="height: 30px; font-size: 0.75rem;" id="manualEntryFromAlertBtn">Enter Details Manually</button>
+            </div>
+          </div>
+
+          <!-- SIDE-BY-SIDE EXTRACTION & VERIFICATION AREA (HUMAN REVIEW GATE) -->
           <div class="ocr-review-container gradient-border-card" id="ocrReviewContainer" hidden>
             
             <div class="ocr-review-header">
               <div class="ocr-meta-group">
-                <span class="ocr-badge">AI/OCR EXTRACTION READY</span>
+                <span class="ocr-badge">REVIEW EXTRACTED INFORMATION</span>
                 <h3 class="ocr-bill-title" id="ocrDistributorDisplay">Distributor Invoice</h3>
                 <div class="ocr-meta-row" id="ocrMetaRow">
                   <span>Invoice No: <strong id="ocrInvoiceNoDisplay">—</strong></span>
@@ -1301,16 +1315,19 @@
               <!-- Left: Document Preview -->
               <div class="doc-preview-pane">
                 <div class="doc-preview-header">
-                  <span>Original Bill Preview</span>
-                  <span class="doc-preview-status">High Resolution Scan</span>
+                  <span>Original Document Record</span>
+                  <span class="doc-preview-status" id="docPreviewStatusLabel">Secure Link</span>
                 </div>
                 <div class="doc-preview-sheet" id="docPreviewSheet">
                   <div class="simulated-bill-header">
-                    <div class="sim-bill-logo" id="simBillLogo">CIPLA DISTRIBUTORS</div>
-                    <div class="sim-bill-meta" id="simBillMeta">TAX INVOICE • GSTIN: 07AABC1092</div>
+                    <div class="sim-bill-logo" id="simBillLogo">ORIGINAL INVOICE</div>
+                    <div class="sim-bill-meta" id="simBillMeta">TAX INVOICE FILE</div>
+                  </div>
+                  <div id="originalBillImgContainer" style="margin-top: 0.5rem; text-align: center;">
+                    <img id="originalBillPreviewImg" src="" alt="Uploaded Bill Document" style="max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--color-border); display: none;">
                   </div>
                   <div class="simulated-bill-table" id="simBillTable">
-                    <!-- Simulated document lines for side-by-side verification -->
+                    <!-- Text preview if image is loading -->
                   </div>
                 </div>
               </div>
@@ -1319,18 +1336,18 @@
               <div class="doc-extracted-pane">
                 <div class="doc-preview-header">
                   <span>Extracted Structured Data (Human Verification Gate)</span>
-                  <span class="doc-confidence-legend">✓ High Confidence | ⚠ Check Unverified</span>
+                  <span class="doc-confidence-legend">✓ Confident | ⚠ Needs Verification</span>
                 </div>
 
                 <div class="ocr-table-wrapper">
                   <table class="data-table ocr-table">
                     <thead>
                       <tr>
-                        <th>Confidence</th>
-                        <th>Medicine Name *</th>
+                        <th>Status</th>
+                        <th>Medicine Name (Exact Printed) *</th>
                         <th>Pack</th>
                         <th>Batch *</th>
-                        <th>Expiry (MM/YY) *</th>
+                        <th>Expiry (YYYY-MM) *</th>
                         <th>Qty *</th>
                         <th>Rate (₹) *</th>
                         <th>MRP</th>
@@ -1349,10 +1366,10 @@
 
           </div>
 
-          <!-- Ingested Bills Audit History -->
+          <!-- Ingested Bills Audit History (Permanent Link to Original Bills) -->
           <div class="dash-card gradient-border-subtle" style="margin-top: 2rem;">
             <div class="dash-card-header">
-              <h3>Ingested Purchase Bills History</h3>
+              <h3>Bills & Records History</h3>
             </div>
             <div id="billsHistoryContainer">
               <div class="empty-state-small" id="emptyBillsHistory">
@@ -1893,7 +1910,7 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 4: AUTHENTIC GOOGLE OAUTH SIGN-IN DIALOG (CLEAN & INTERACTIVE)
+       MODAL 4: AUTHENTIC GOOGLE OAUTH SIGN-IN DIALOG
        ========================================================================== -->
   <div id="googleModal" class="google-modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="googleModalTitle">
     <div class="google-modal-backdrop" id="googleModalBackdrop"></div>
