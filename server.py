@@ -427,8 +427,15 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
         import base64
         b64_data = base64.b64encode(image_bytes).decode('utf-8')
         
-        # Gemini 1.5 Flash REST API endpoint
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # Priority Gemini multimodal models
+        gemini_models = [
+            'gemini-3.5-flash',
+            'gemini-3.5-flash-lite',
+            'gemini-3.6-flash',
+            'gemini-3.7-flash',
+            'gemini-2.5-flash',
+            'gemini-1.5-flash'
+        ]
         
         payload = {
             "contents": [
@@ -450,20 +457,31 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
             }
         }
         
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode('utf-8'),
-            headers={'Content-Type': 'application/json'}
-        )
-        
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            candidates = data.get('candidates', [])
-            if candidates:
-                text_content = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '{}')
-                parsed_json = json.loads(text_content)
-                parsed_json["success"] = True
-                return parsed_json
+        for model in gemini_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode('utf-8'),
+                    headers={'Content-Type': 'application/json'}
+                )
+                with urllib.request.urlopen(req, timeout=25) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    candidates = data.get('candidates', [])
+                    if candidates:
+                        text_content = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '{}')
+                        parsed_json = json.loads(text_content)
+                        parsed_json["success"] = True
+                        print(f"[GEMINI BILL AI SUCCESS] Extracted bill via {model}")
+                        return parsed_json
+            except urllib.error.HTTPError as he:
+                if he.code in (404, 400, 429):
+                    continue
+                else:
+                    raise he
+            except Exception as e:
+                continue
+
     except Exception as e:
         print(f"[GEMINI BILL AI ERROR]: {e}", file=sys.stderr)
         return {
