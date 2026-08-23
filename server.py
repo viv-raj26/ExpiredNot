@@ -316,8 +316,8 @@ def send_email_otp(to_email, otp_code):
     # 3. Try Standard SMTP / Gmail SMTP
     smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.environ.get("SMTP_PORT", 587))
-    smtp_user = os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")
-    smtp_pass = os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD", "")
+    smtp_user = (os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")).strip()
+    smtp_pass = (os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD", "")).replace(" ", "").strip()
     
     if smtp_user and smtp_pass:
         try:
