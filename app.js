@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const ACTIVE_SESSION_KEY = 'expirednot_active_session';
   const ACTIVE_TOKEN_KEY = 'expirednot_auth_token';
 
+  // Production Backend API URL (Render Deployment)
+  const API_BASE_URL = 'https://expirednot.onrender.com';
+
   let currentPharmacy = null;
   let sessionToken = localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || null;
 
@@ -40,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // First try loading from backend
     try {
-      const res = await fetch('/api/inventory', { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/api/inventory`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data.batches) {
@@ -167,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       try {
-        await fetch('/api/auth/logout', { credentials: 'omit', credentials: 'same-origin', headers: getAuthHeaders(), method: 'POST' });
+        await fetch(`${API_BASE_URL}/api/auth/logout`, { credentials: 'omit', headers: getAuthHeaders(), method: 'POST' });
       } catch {}
       sessionStorage.removeItem(ACTIVE_SESSION_KEY);
       localStorage.removeItem(ACTIVE_SESSION_KEY);
@@ -256,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (signInBtnText) signInBtnText.textContent = 'Signing in…';
 
       try {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier, password: pass })
@@ -315,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loginWithOtpBtn.textContent = 'Sending OTP code…';
 
       try {
-        const res = await fetch('/api/auth/send-login-otp', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/send-login-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: identifier })
@@ -381,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const fetchAuthConfig = async () => {
     try {
-      const res = await fetch('/api/config/auth');
+      const res = await fetch(`${API_BASE_URL}/api/config/auth`);
       const data = await res.json();
       serverGoogleClientId = data.google_client_id || '';
       isGoogleConfigured = data.google_configured || false;
@@ -401,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!response || !response.credential) return;
     try {
       showAuthNotice('Authenticating with Google…', 'info');
-      const res = await fetch('/api/auth/google', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: response.credential })
@@ -493,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch('/api/auth/google', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name })
@@ -659,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (sendOtpBtnText) sendOtpBtnText.textContent = 'Sending code…';
 
       try {
-        const res = await fetch('/api/auth/register', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password: pass })
@@ -770,7 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resendOtpBtn.addEventListener('click', async () => {
       if (!pendingRegistration.email) return;
       try {
-        const res = await fetch('/api/auth/resend-otp', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/resend-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: pendingRegistration.email })
@@ -811,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verifying…';
 
       try {
-        const res = await fetch('/api/auth/verify-otp', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: pendingRegistration.email, code: enteredCode })
@@ -940,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (finishSetupBtnText) finishSetupBtnText.textContent = 'Configuring workspace…';
 
       try {
-        const res = await fetch('/api/onboarding/complete', {
+        const res = await fetch(`${API_BASE_URL}/api/onboarding/complete`, {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify({
@@ -1824,7 +1827,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => setPipelineStep(2), 300); // Reading document
       setTimeout(() => setPipelineStep(3), 700); // Extracting bill information
 
-      const res = await fetch('/api/bills/analyze', {
+      const res = await fetch(`${API_BASE_URL}/api/bills/analyze`, {
         method: 'POST',
         headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
         body: formData
@@ -2070,7 +2073,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       try {
-        const res = await fetch('/api/bills/confirm', {
+        const res = await fetch(`${API_BASE_URL}/api/bills/confirm`, {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify(payload)
@@ -2428,7 +2431,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const initSessionCheck = async () => {
     if (sessionToken) {
       try {
-        const res = await fetch('/api/auth/session', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/session`, {
           headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         if (res.ok) {

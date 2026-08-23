@@ -551,7 +551,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         path = url_parsed.path
         
         # API Routes
-        if path == '/api/config/auth':
+        if path in ('/api/config/auth', '/api/config/auth-status'):
             g_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
             return self._send_json({
                 "google_client_id": g_client_id,
