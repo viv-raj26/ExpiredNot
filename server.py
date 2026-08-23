@@ -1162,6 +1162,57 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         # Fallback 404
         return self._send_json({"error": "Endpoint not found."}, 404)
 
+def app(environ, start_response):
+    """
+    WSGI callable entrypoint for Gunicorn/Render deployments (gunicorn server:app).
+    """
+    import io
+    from http.client import HTTPMessage
+    
+    class WSGIHandler(ExpiredNotHandler):
+        def __init__(self, req_env):
+            self.environ = req_env
+            self.headers_set = []
+            self.status_line = "200 OK"
+            self.output = io.BytesIO()
+            self.rfile = req_env['wsgi.input']
+            self.wfile = self.output
+            self.command = req_env['REQUEST_METHOD']
+            self.path = req_env.get('PATH_INFO', '/')
+            if req_env.get('QUERY_STRING'):
+                self.path += '?' + req_env['QUERY_STRING']
+            self.request_version = "HTTP/1.1"
+            self.close_connection = True
+            
+            self.headers = HTTPMessage()
+            for key, val in req_env.items():
+                if key.startswith('HTTP_'):
+                    h_name = key[5:].replace('_', '-').title()
+                    self.headers.add_header(h_name, val)
+                elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
+                    h_name = key.replace('_', '-').title()
+                    self.headers.add_header(h_name, val)
+            
+            if self.command == 'GET':
+                self.do_GET()
+            elif self.command == 'POST':
+                self.do_POST()
+            elif self.command == 'OPTIONS':
+                self.do_OPTIONS()
+
+        def send_response(self, code, message=None):
+            self.status_line = f"{code} {'OK' if code == 200 else 'Response'}"
+
+        def send_header(self, keyword, value):
+            self.headers_set.append((keyword, str(value)))
+
+        def end_headers(self):
+            pass
+
+    handler = WSGIHandler(environ)
+    start_response(handler.status_line, handler.headers_set)
+    return [handler.output.getvalue()]
+
 def run_server():
     server_address = ('', PORT)
     httpd = ThreadingHTTPServer(server_address, ExpiredNotHandler)
