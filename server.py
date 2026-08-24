@@ -319,7 +319,7 @@ def send_email_otp(to_email, otp_code):
     smtp_user = (os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")).strip()
     smtp_pass = (os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD", "")).replace(" ", "").strip()
     if smtp_user and smtp_pass:
-    try:
+        try:
         import requests
         
         sender_email = "vivraj0121@gmail.com"
