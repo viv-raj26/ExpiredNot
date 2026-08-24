@@ -322,7 +322,7 @@ def send_email_otp(to_email, otp_code):
         try:
             import requests
     
-            sender_email = "vivraj0121@gmail.com"
+            sender_email = "crazy4everyone2026@outlook.com"
     
             url = "https://api.brevo.com/v3/smtp/email"
             payload = {
