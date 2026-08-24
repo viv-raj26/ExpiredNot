@@ -318,12 +318,12 @@ def send_email_otp(to_email, otp_code):
     smtp_port = int(os.environ.get("SMTP_PORT", 587))
     smtp_user = (os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")).strip()
     smtp_pass = (os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD", "")).replace(" ", "").strip()
-    
+    if smtp_user and smtp_pass:
         try:
         import requests
-        
-        sender_email = "vivraj0121@gmail.com"
-        
+
+        sender_email = "your_verified_sender_email@example.com"
+
         url = "https://api.brevo.com/v3/smtp/email"
         payload = {
             "sender": {
@@ -357,11 +357,16 @@ def send_email_otp(to_email, otp_code):
         else:
             print(f"Failed to send email: {response.text}")
             return False
-            
+
     except Exception as e:
         print(f"Error sending email: {e}")
         return False
 
+# If smtp_user or smtp_pass is missing, fallback to logging the OTP
+print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
+return False
+    
+      
 # ==============================================================================
 # GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
 # ==============================================================================
