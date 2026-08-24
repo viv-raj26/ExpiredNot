@@ -319,45 +319,48 @@ def send_email_otp(to_email, otp_code):
     smtp_user = (os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")).strip()
     smtp_pass = (os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD", "")).replace(" ", "").strip()
     
-    if smtp_user and smtp_pass:
         try:
-            import smtplib
-            from email.mime.text import MIMEText
-            from email.mime.multipart import MIMEMultipart
-            from email.utils import make_msgid, formatdate
+        import requests
+        
+        sender_email = "vivraj0121@gmail.com"
+        
+        url = "https://api.brevo.com/v3/smtp/email"
+        payload = {
+            "sender": {
+                "name": "EXPIREDNOT",
+                "email": sender_email
+            },
+            "to": [
+                {"email": to_email}
+            ],
+            "subject": f"Your {otp_code} verification code",
+            "htmlContent": f"""<div style='font-family: "Segoe UI", Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;'>
+                                <h2 style='color: #059669; margin-top: 0;'>EXPIREDNOT</h2>
+                                <p style='font-size: 15px; color: #334155;'>Your verification code is:</p>
+                                <div style='background: #f8fdf4; border: 1px dashed #86efac; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;'>
+                                    <span style='font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;'>{otp_code}</span>
+                                </div>
+                                <p style='font-size: 13px; color: #64748b;'>Expires in 5 minutes.</p>
+                            </div>"""
+        }
+        headers = {
+            "accept": "application/json",
+            "api-key": os.getenv("BREVO_API_KEY"),
+            "content-type": "application/json"
+        }
 
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"{otp_code} is your EXPIREDNOT verification code"
-            msg['From'] = f"EXPIREDNOT Security <{smtp_user}>"
-            msg['To'] = to_email
-            msg['Date'] = formatdate(localtime=True)
-            msg['Message-ID'] = make_msgid()
+        response = requests.post(url, json=payload, headers=headers)
 
-            html_content = f"""
-            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                <h2 style="color: #059669; margin-top: 0;">EXPIREDNOT</h2>
-                <p style="font-size: 15px; color: #334155;">Your verification code is:</p>
-                <div style="background: #f0fdf4; border: 1.5px dashed #86efac; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
-                    <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;">{otp_code}</span>
-                </div>
-                <p style="font-size: 13px; color: #64748b;">Expires in 5 minutes.</p>
-            </div>
-            """
-            msg.attach(MIMEText(html_content, 'html'))
-
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
-
-            print(f"[SMTP EMAIL SUCCESS] Sent to {to_email}")
+        if response.status_code == 201 or response.status_code == 200:
+            print(f"OTP email sent successfully to {to_email}")
             return True
-        except Exception as e:
-            print(f"[SMTP EMAIL ERROR]: {e}", file=sys.stderr)
-
-    print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
-    return False
-
+        else:
+            print(f"Failed to send email: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
 
 # ==============================================================================
 # GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
