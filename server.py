@@ -322,7 +322,7 @@ def send_email_otp(to_email, otp_code):
         try:
             import requests
     
-            sender_email = "your_verified_sender_email@example.com"
+            sender_email = "vivraj0121@gmail.com"
     
             url = "https://api.brevo.com/v3/smtp/email"
             payload = {
@@ -361,13 +361,6 @@ def send_email_otp(to_email, otp_code):
         except Exception as e:
             print(f"Error sending email: {e}")
             return False
-
-# If smtp_user or smtp_pass is missing, fallback to logging the OTP
-print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
-return False
-# If smtp_user or smtp_pass is missing, fallback to logging the OTP
-print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
-return False
    
     
       
