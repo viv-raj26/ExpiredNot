@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 EXPIREDNOT — Pharmacy Inventory Intelligence Backend Server
-Production standard-library server: Auth, Hashed OTP, Google OAuth, Multimodal Document AI, SQLite Storage
 """
 
 import os
@@ -223,7 +222,6 @@ def verify_password(password, pwd_hash, salt):
     return hmac.compare_digest(test_hash, pwd_hash)
 
 def generate_secure_otp():
-    # 6-digit random number
     return str(secrets.randbelow(900000) + 100000)
 
 def hash_otp(otp_str, salt=None):
@@ -286,10 +284,9 @@ def send_email_otp(to_email, otp_code):
         except Exception as e:
             print(f"[RESEND EMAIL ERROR]: {e}", file=sys.stderr)
 
-    # Log OTP securely to server console for testing/verification
     print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
     return False
-    
+
 # ==============================================================================
 # GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
 # ==============================================================================
@@ -309,7 +306,6 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
             "items": []
         }
     
-    # Strict Structured Prompt
     system_instruction = (
         "You are EXPIREDNOT's high-precision pharmacy purchase bill intelligence engine. "
         "Extract ONLY what is visibly printed on the invoice. NEVER invent, hallucinate, or substitute medicine names. "
@@ -358,7 +354,6 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
         import base64
         b64_data = base64.b64encode(image_bytes).decode('utf-8')
         
-        # Priority Gemini multimodal models
         gemini_models = [
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
@@ -450,7 +445,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             token = auth_header[7:].strip()
         
         if not token:
-            # Check cookie if present
             cookie = self.headers.get('Cookie', '')
             if 'exp_session=' in cookie:
                 token = cookie.split('exp_session=')[1].split(';')[0].strip()
@@ -481,7 +475,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         url_parsed = urllib.parse.urlparse(self.path)
         path = url_parsed.path
         
-        # API Routes
         if path in ('/api/config/auth', '/api/config/auth-status'):
             g_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
             return self._send_json({
@@ -540,7 +533,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "total_bills_count": len(bills)
             })
 
-        # Static File Serving
         if path == '/' or path == '/index.html':
             file_path = os.path.join(BASE_DIR, 'index.html')
         else:
@@ -559,7 +551,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(content)
         else:
-            # SPA Fallback for client routes
             index_path = os.path.join(BASE_DIR, 'index.html')
             with open(index_path, 'rb') as f:
                 content = f.read()
@@ -578,13 +569,10 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         
         content_type = self.headers.get('Content-Type', '')
         
-        # Handle multipart for bill uploads
         if path == '/api/bills/analyze' and 'multipart/form-data' in content_type:
             user = self._get_auth_user()
-            # If not logged in, we can still analyze or enforce auth
             user_id = user['id'] if user else 'GUEST'
             
-            # Simple multipart parser
             try:
                 boundary = content_type.split('boundary=')[1].encode('utf-8')
                 parts = post_body.split(b'--' + boundary)
@@ -608,7 +596,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 if not file_bytes:
                     return self._send_json({"error": "No file uploaded."}, 400)
                 
-                # Save original file permanently
                 bill_id = f"BILL_{int(time.time())}_{secrets.token_hex(4)}"
                 ext = mimetypes.guess_extension(file_mime) or '.jpg'
                 saved_filename = f"{bill_id}{ext}"
@@ -619,7 +606,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
                 relative_file_url = f"/uploads/bills/{saved_filename}"
                 
-                # Analyze via Gemini Multimodal
                 extracted_data = call_gemini_multimodal_bill_parser(file_bytes, file_mime)
                 extracted_data["bill_id"] = bill_id
                 extracted_data["original_file_url"] = relative_file_url
@@ -631,15 +617,11 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 print(f"Upload Error: {e}", file=sys.stderr)
                 return self._send_json({"error": f"Failed to process bill file: {str(e)}"}, 500)
 
-        # JSON body handling for all other endpoints
         try:
             req_data = json.loads(post_body.decode('utf-8')) if post_body else {}
         except Exception:
             req_data = {}
 
-        # ----------------------------------------------------------------------
-        # AUTH: Register (Step 1 -> Sends Hashed 6-digit OTP)
-        # ----------------------------------------------------------------------
         if path == '/api/auth/register':
             email = req_data.get('email', '').strip().lower()
             password = req_data.get('password', '')
@@ -656,19 +638,16 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 if existing and existing['setup_completed']:
                     return self._send_json({"error": "An account with this email already exists. Please sign in."}, 400)
                 
-                # Generate 6-digit OTP and store SHA-256 HASH
                 otp_code = generate_secure_otp()
                 otp_h, otp_salt = hash_otp(otp_code)
                 now = int(time.time())
-                expires_at = now + (5 * 60) # 5 minutes expiration
+                expires_at = now + (5 * 60)
                 
-                # Invalidate any previous OTP & insert new
                 cursor.execute('''
                     INSERT OR REPLACE INTO otps (email, otp_hash, salt, expires_at, attempts, created_at)
                     VALUES (?, ?, ?, ?, 0, ?)
                 ''', (email, otp_h, otp_salt, expires_at, now))
                 
-                # Create unverified user if not existing
                 if not existing:
                     user_id = f"USR_{int(time.time())}_{secrets.token_hex(4)}"
                     pwd_h, pwd_salt = hash_password(password)
@@ -682,10 +661,8 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
                 conn.commit()
                 
-            # Send real email via SMTP in background thread (non-blocking)
             threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
             
-            # Log OTP securely to server console for testing/verification
             print(f"[SECURITY OTP DISPATCH] 6-Digit Email OTP for {email}: {otp_code} (Expires in 5m)", file=sys.stdout)
             
             return self._send_json({
@@ -695,9 +672,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "expires_in_seconds": 300
             })
 
-        # ----------------------------------------------------------------------
-        # AUTH: Verify Email OTP (Checks SHA-256 hash, attempts, expiry)
-        # ----------------------------------------------------------------------
         elif path == '/api/auth/verify-otp':
             email = req_data.get('email', '').strip().lower()
             code = req_data.get('code', '').strip()
@@ -720,21 +694,18 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 if otp_record['attempts'] >= 5:
                     return self._send_json({"error": "Too many failed attempts. Please request a new verification code."}, 429)
                     
-                # Verify SHA-256 Hash
                 expected_hash, _ = hash_otp(code, otp_record['salt'])
                 if not hmac.compare_digest(expected_hash, otp_record['otp_hash']):
                     cursor.execute("UPDATE otps SET attempts = attempts + 1 WHERE email = ?", (email,))
                     conn.commit()
                     return self._send_json({"error": "Incorrect verification code. Please try again."}, 400)
                     
-                # OTP is valid -> Mark email verified & Invalidate OTP
                 cursor.execute("UPDATE users SET email_verified = 1 WHERE email = ?", (email,))
                 cursor.execute("DELETE FROM otps WHERE email = ?", (email,))
                 
                 cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
                 user = cursor.fetchone()
                 
-                # Issue session token
                 session_token = secrets.token_hex(32)
                 cursor.execute('''
                     INSERT INTO sessions (token, user_id, expires_at, created_at)
@@ -750,9 +721,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "user": sanitize_user(user)
             })
 
-        # ----------------------------------------------------------------------
-        # AUTH: Resend OTP (Enforces 30s rate limiting)
-        # ----------------------------------------------------------------------
         elif path == '/api/auth/resend-otp':
             email = req_data.get('email', '').strip().lower()
             if not email:
@@ -785,9 +753,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "message": "New verification code sent to your email."
             })
 
-        # ----------------------------------------------------------------------
-        # AUTH: Send Login OTP (Sign in without password)
-        # ----------------------------------------------------------------------
         elif path == '/api/auth/send-login-otp':
             email = req_data.get('email', '').strip().lower()
             if not email or '@' not in email:
@@ -799,14 +764,12 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 user = cursor.fetchone()
                 now = int(time.time())
                 
-                # Check resend limit
                 cursor.execute("SELECT created_at FROM otps WHERE email = ?", (email,))
                 existing_otp = cursor.fetchone()
                 if existing_otp and (now - existing_otp['created_at']) < 30:
                     wait_time = 30 - (now - existing_otp['created_at'])
                     return self._send_json({"error": f"Please wait {wait_time}s before requesting a new code."}, 429)
                 
-                # Create user placeholder if not exists
                 if not user:
                     user_id = f"USR_{int(time.time())}_{secrets.token_hex(4)}"
                     cursor.execute('''
@@ -833,9 +796,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "expires_in_seconds": 300
             })
 
-        # ----------------------------------------------------------------------
-        # AUTH: Login (Email + Password)
-        # ----------------------------------------------------------------------
         elif path == '/api/auth/login':
             identifier = req_data.get('identifier', '').strip()
             password = req_data.get('password', '')
@@ -868,7 +828,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     }, 403)
                     
                 if not user['setup_completed']:
-                    # Issue session to finish setup
                     now = int(time.time())
                     token = secrets.token_hex(32)
                     cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + 86400, now))
@@ -892,15 +851,11 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "user": sanitize_user(user)
             })
 
-        # ----------------------------------------------------------------------
-        # AUTH: Google OAuth Sign In (Official Identity Services / Verified ID Token)
-        # ----------------------------------------------------------------------
         elif path == '/api/auth/google':
             credential = req_data.get('credential', '')
             email = req_data.get('email', '').strip().lower()
             name = req_data.get('name', '').strip()
             
-            # If Google ID token JWT credential is provided, verify with Google
             if credential:
                 try:
                     token_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(credential)}"
@@ -924,7 +879,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 now = int(time.time())
                 
                 if user and user['setup_completed']:
-                    # Existing user with completed pharmacy profile -> issue session & enter Dashboard
                     token = secrets.token_hex(32)
                     cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + (30 * 86400), now))
                     conn.commit()
@@ -935,7 +889,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                         "user": sanitize_user(user)
                     })
                 else:
-                    # New Google user -> Google verified email ownership -> proceeds to Pharmacy Details setup
                     user_id = user['id'] if user else f"USR_G_{int(time.time())}_{secrets.token_hex(4)}"
                     if not user:
                         cursor.execute('''
@@ -962,9 +915,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                         "user": sanitize_user(u_row)
                     })
 
-        # ----------------------------------------------------------------------
-        # ONBOARDING: Complete Pharmacy Setup (Including Shop Full Address)
-        # ----------------------------------------------------------------------
         elif path == '/api/onboarding/complete':
             user = self._get_auth_user()
             if not user:
@@ -993,7 +943,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     WHERE id = ?
                 ''', (shop_name, dl_number, shop_address, city, state, pincode, pharmacy_type, owner_name, role, mobile, user['id']))
                 
-                # Add welcome notification
                 cursor.execute('''
                     INSERT INTO notifications (id, user_id, text, type, is_read, created_at)
                     VALUES (?, ?, ?, 'system', 0, ?)
@@ -1006,9 +955,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
             return self._send_json({"success": True, "user": sanitize_user(updated_user)})
 
-        # ----------------------------------------------------------------------
-        # BILLS: Confirm & Ingest Verified Bill into Real Inventory
-        # ----------------------------------------------------------------------
         elif path == '/api/bills/confirm':
             user = self._get_auth_user()
             if not user:
@@ -1030,13 +976,11 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             with get_db() as conn:
                 cursor = conn.cursor()
                 
-                # 1. Save Bill Record with original document link
                 cursor.execute('''
                     INSERT OR REPLACE INTO bills (id, user_id, distributor, invoice_no, invoice_date, total_amount, original_file_path, file_name, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (bill_id, user['id'], distributor, invoice_no, invoice_date, total_bill_amount, original_file_url, os.path.basename(original_file_url), now))
                 
-                # 2. Insert Batches into Real Inventory
                 for idx, item in enumerate(items):
                     batch_id = f"B_{now}_{idx}_{secrets.token_hex(3)}"
                     name = item.get('name', '').strip()
@@ -1055,14 +999,12 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (batch_id, user['id'], bill_id, name, item.get('generic_name'), pack, batch_no, expiry_date, qty, rate, mrp, rack, distributor, now))
                     
-                    # 3. Log Stock Movement
                     mov_id = f"MOV_{now}_{idx}"
                     cursor.execute('''
                         INSERT INTO movements (id, user_id, type, medicine_name, batch_no, quantity, value, notes, created_at)
                         VALUES (?, ?, 'Purchased', ?, ?, ?, ?, ?, ?)
                     ''', (mov_id, user['id'], name, batch_no, qty, qty * rate, f"Invoice #{invoice_no}", now))
                 
-                # 4. Add Notification
                 cursor.execute('''
                     INSERT INTO notifications (id, user_id, text, type, is_read, created_at)
                     VALUES (?, ?, ?, 'bill', 0, ?)
@@ -1077,9 +1019,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "total_amount": total_bill_amount
             })
 
-        # ----------------------------------------------------------------------
-        # AUTH: Logout (Destroys Session)
-        # ----------------------------------------------------------------------
         elif path == '/api/auth/logout':
             auth_header = self.headers.get('Authorization', '')
             if auth_header.startswith('Bearer '):
@@ -1090,7 +1029,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     conn.commit()
             return self._send_json({"success": True, "message": "Logged out."})
 
-        # Fallback 404
         return self._send_json({"error": "Endpoint not found."}, 404)
 
 def app(environ, start_response):
