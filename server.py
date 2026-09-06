@@ -290,6 +290,128 @@ def send_email_otp(to_email, otp_code):
 # ==============================================================================
 # GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
 # ==============================================================================
+def normalize_extracted_bill(raw_data):
+    """
+    Validates and normalizes structured JSON returned by Gemini Multimodal Document AI.
+    Never injects fake fallback medicines.
+    """
+    if not isinstance(raw_data, dict):
+        return None
+    
+    items_raw = raw_data.get('items') or raw_data.get('line_items') or raw_data.get('products') or []
+    if not isinstance(items_raw, list):
+        items_raw = []
+        
+    normalized_items = []
+    for it in items_raw:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get('name') or it.get('product_name') or it.get('item_name') or it.get('description') or '').strip()
+        if not name:
+            continue
+        
+        batch_no = str(it.get('batch_no') or it.get('batch_number') or it.get('batch') or '').strip().upper()
+        expiry_date = str(it.get('expiry_date') or it.get('expiry') or it.get('exp_date') or it.get('exp') or '').strip()
+        
+        try:
+            quantity = float(it.get('quantity') or it.get('qty') or 1)
+        except (ValueError, TypeError):
+            quantity = 1.0
+            
+        try:
+            free_qty = float(it.get('free_qty') or it.get('free_quantity') or it.get('free') or 0)
+        except (ValueError, TypeError):
+            free_qty = 0.0
+
+        try:
+            purchase_rate = float(it.get('purchase_rate') or it.get('purchase_price') or it.get('rate') or it.get('unit_price') or 0)
+        except (ValueError, TypeError):
+            purchase_rate = 0.0
+
+        try:
+            mrp = float(it.get('mrp') or it.get('max_retail_price') or (purchase_rate * 1.3))
+        except (ValueError, TypeError):
+            mrp = round(purchase_rate * 1.3, 2)
+
+        try:
+            tax_pct = float(it.get('tax_pct') or it.get('tax_percentage') or it.get('gst') or it.get('gst_pct') or 0)
+        except (ValueError, TypeError):
+            tax_pct = 0.0
+
+        try:
+            discount = float(it.get('discount') or it.get('disc') or 0)
+        except (ValueError, TypeError):
+            discount = 0.0
+
+        line_total = it.get('line_total') or it.get('total')
+        try:
+            line_total = float(line_total) if line_total is not None else round(quantity * purchase_rate, 2)
+        except (ValueError, TypeError):
+            line_total = round(quantity * purchase_rate, 2)
+
+        conf = str(it.get('conf') or it.get('verification_status') or 'high').lower()
+        if 'need' in conf or 'unverif' in conf or not batch_no or not expiry_date:
+            conf = 'needs_verification'
+        else:
+            conf = 'high'
+
+        normalized_items.append({
+            "name": name,
+            "generic_name": it.get('generic_name') or None,
+            "brand": it.get('brand') or None,
+            "manufacturer": it.get('manufacturer') or it.get('mfg_by') or None,
+            "pack": it.get('pack') or it.get('pack_size') or '10s',
+            "batch_no": batch_no,
+            "mfg_date": it.get('mfg_date') or it.get('manufacturing_date') or None,
+            "expiry_date": expiry_date,
+            "quantity": quantity,
+            "free_qty": free_qty,
+            "purchase_rate": purchase_rate,
+            "unit_price": purchase_rate,
+            "mrp": mrp,
+            "discount": discount,
+            "tax_pct": tax_pct,
+            "line_total": line_total,
+            "conf": conf
+        })
+
+    if not normalized_items:
+        return None
+
+    total_amount = raw_data.get('total_amount') or raw_data.get('grand_total') or raw_data.get('net_amount')
+    try:
+        total_amount = float(total_amount) if total_amount is not None else sum(i['line_total'] for i in normalized_items)
+    except (ValueError, TypeError):
+        total_amount = sum(i['line_total'] for i in normalized_items)
+
+    seller_dict = raw_data.get('seller') if isinstance(raw_data.get('seller'), dict) else {}
+    buyer_dict = raw_data.get('buyer') if isinstance(raw_data.get('buyer'), dict) else {}
+
+    return {
+        "success": True,
+        "distributor": raw_data.get('distributor') or raw_data.get('seller_name') or seller_dict.get('name') or 'Wholesale Supplier',
+        "seller_address": raw_data.get('seller_address') or seller_dict.get('address') or None,
+        "seller_phone": raw_data.get('seller_phone') or seller_dict.get('phone') or None,
+        "seller_gstin": raw_data.get('seller_gstin') or seller_dict.get('gstin') or None,
+        "seller_dl": raw_data.get('seller_dl') or seller_dict.get('dl_number') or None,
+        "buyer_name": raw_data.get('buyer_name') or buyer_dict.get('name') or None,
+        "buyer_address": raw_data.get('buyer_address') or buyer_dict.get('address') or None,
+        "buyer_phone": raw_data.get('buyer_phone') or buyer_dict.get('phone') or None,
+        "buyer_gstin": raw_data.get('buyer_gstin') or buyer_dict.get('gstin') or None,
+        "invoice_no": raw_data.get('invoice_no') or raw_data.get('bill_no') or f"INV-{secrets.token_hex(3).upper()}",
+        "invoice_date": raw_data.get('invoice_date') or raw_data.get('bill_date') or time.strftime('%Y-%m-%d'),
+        "due_date": raw_data.get('due_date') or None,
+        "payment_terms": raw_data.get('payment_terms') or None,
+        "subtotal": float(raw_data.get('subtotal', 0) or 0),
+        "taxable_amount": float(raw_data.get('taxable_amount', 0) or 0),
+        "cgst": float(raw_data.get('cgst', 0) or 0),
+        "sgst": float(raw_data.get('sgst', 0) or 0),
+        "igst": float(raw_data.get('igst', 0) or 0),
+        "discount": float(raw_data.get('discount', 0) or 0),
+        "total_amount": round(total_amount, 2),
+        "items": normalized_items
+    }
+
 def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
     """
     Calls Google Gemini Multimodal REST API with image payload and strict structured JSON schema.
@@ -308,46 +430,13 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
     
     system_instruction = (
         "You are EXPIREDNOT's high-precision pharmacy purchase bill intelligence engine. "
-        "Extract ONLY what is visibly printed on the invoice. NEVER invent, hallucinate, or substitute medicine names. "
-        "Extract the exact printed product names, batch numbers, expiry dates, quantities, rates, MRPs, and invoice metadata. "
-        "If a field is not printed or unreadable, return null and set verification_status to 'needs_verification'. "
-        "Output strictly valid JSON matching this schema:\n"
-        "{\n"
-        "  \"distributor\": \"Seller name or null\",\n"
-        "  \"seller_address\": \"Seller address or null\",\n"
-        "  \"seller_gstin\": \"Seller GSTIN or null\",\n"
-        "  \"seller_phone\": \"Seller phone or null\",\n"
-        "  \"buyer_name\": \"Buyer pharmacy name or null\",\n"
-        "  \"buyer_address\": \"Buyer pharmacy address or null\",\n"
-        "  \"buyer_gstin\": \"Buyer GSTIN or null\",\n"
-        "  \"invoice_no\": \"Invoice number or null\",\n"
-        "  \"invoice_date\": \"YYYY-MM-DD or null\",\n"
-        "  \"total_amount\": 0.00,\n"
-        "  \"taxable_amount\": 0.00,\n"
-        "  \"cgst\": 0.00,\n"
-        "  \"sgst\": 0.00,\n"
-        "  \"igst\": 0.00,\n"
-        "  \"discount\": 0.00,\n"
-        "  \"items\": [\n"
-        "    {\n"
-        "      \"name\": \"Exact printed product name\",\n"
-        "      \"generic_name\": \"Generic salt if printed or null\",\n"
-        "      \"brand\": \"Brand name if printed or null\",\n"
-        "      \"manufacturer\": \"Manufacturer name if printed or null\",\n"
-        "      \"pack\": \"Pack size e.g. 10s or null\",\n"
-        "      \"batch_no\": \"Batch number\",\n"
-        "      \"expiry_date\": \"YYYY-MM or YYYY-MM-DD\",\n"
-        "      \"quantity\": 10,\n"
-        "      \"free_qty\": 0,\n"
-        "      \"purchase_rate\": 100.00,\n"
-        "      \"mrp\": 140.00,\n"
-        "      \"discount\": 0.00,\n"
-        "      \"tax_pct\": 12.0,\n"
-        "      \"line_total\": 1000.00,\n"
-        "      \"conf\": \"high\"\n"
-        "    }\n"
-        "  ]\n"
-        "}"
+        "Extract ONLY what is visibly printed on the invoice document. NEVER invent, hallucinate, or substitute medicine names. "
+        "Preserve exact printed product characters (e.g. if printed 'ABC-500 TAB', output 'ABC-500 TAB', do not change to Paracetamol). "
+        "Extract SELLER (name, address, gstin, phone, dl_number), BUYER (pharmacy name, address, gstin, phone), "
+        "INVOICE (invoice_no, invoice_date, due_date, payment_terms), TOTALS (subtotal, taxable_amount, cgst, sgst, igst, discount, total_amount), "
+        "and all line items (name, generic_name, brand, manufacturer, pack, batch_no, mfg_date, expiry_date [format YYYY-MM], quantity, free_qty, purchase_rate, mrp, discount, tax_pct, line_total, conf ['high' or 'needs_verification']). "
+        "If a field is missing or partially unreadable, set value to null and conf to 'needs_verification'. "
+        "Output strictly valid JSON with keys: distributor, seller_address, seller_phone, seller_gstin, buyer_name, buyer_address, buyer_gstin, invoice_no, invoice_date, due_date, payment_terms, subtotal, taxable_amount, cgst, sgst, igst, discount, total_amount, items."
     )
     
     try:
@@ -396,10 +485,11 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
                     candidates = data.get('candidates', [])
                     if candidates:
                         text_content = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '{}')
-                        parsed_json = json.loads(text_content)
-                        parsed_json["success"] = True
-                        print(f"[GEMINI BILL AI SUCCESS] Extracted bill via {model}")
-                        return parsed_json
+                        raw_json = json.loads(text_content)
+                        normalized = normalize_extracted_bill(raw_json)
+                        if normalized:
+                            print(f"[GEMINI BILL AI SUCCESS] Extracted {len(normalized['items'])} items via {model}")
+                            return normalized
             except urllib.error.HTTPError as he:
                 if he.code in (404, 400, 429):
                     continue
@@ -418,7 +508,7 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
 
     return {
         "success": False,
-        "error": "Unable to confidently extract this bill.",
+        "error": "Unable to confidently extract this bill. Some information could not be read clearly.",
         "items": []
     }
 
@@ -574,30 +664,59 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             user_id = user['id'] if user else 'GUEST'
             
             try:
-                boundary = content_type.split('boundary=')[1].encode('utf-8')
-                parts = post_body.split(b'--' + boundary)
+                # Robust boundary extraction
+                boundary = None
+                for param in content_type.split(';'):
+                    param = param.strip()
+                    if param.startswith('boundary='):
+                        boundary = param.split('boundary=', 1)[1].strip('"\'')
+                        break
+                
+                if not boundary:
+                    return self._send_json({"error": "Invalid multipart form boundary."}, 400)
+                
+                boundary_bytes = boundary.encode('utf-8')
+                parts = post_body.split(b'--' + boundary_bytes)
                 file_bytes = b''
                 file_name = 'uploaded_bill.jpg'
                 file_mime = 'image/jpeg'
                 
                 for p in parts:
                     if b'Content-Disposition' in p and b'filename=' in p:
-                        headers_part, body_part = p.split(b'\r\n\r\n', 1)
-                        body_part = body_part.rstrip(b'\r\n')
-                        file_bytes = body_part
-                        if b'image/png' in headers_part:
-                            file_mime = 'image/png'
-                            file_name = 'bill.png'
-                        elif b'application/pdf' in headers_part:
-                            file_mime = 'application/pdf'
-                            file_name = 'bill.pdf'
+                        header_and_body = p.split(b'\r\n\r\n', 1)
+                        if len(header_and_body) == 2:
+                            header_raw, body_raw = header_and_body
+                            if body_raw.endswith(b'\r\n'):
+                                body_raw = body_raw[:-2]
+                            file_bytes = body_raw
+                            
+                            header_str = header_raw.decode('latin1', errors='ignore')
+                            for h_line in header_str.split('\r\n'):
+                                if 'Content-Type:' in h_line:
+                                    file_mime = h_line.split('Content-Type:', 1)[1].strip()
+                                if 'filename=' in h_line:
+                                    fn_part = h_line.split('filename=', 1)[1].strip()
+                                    file_name = fn_part.strip('"\'')
                         break
                 
                 if not file_bytes:
-                    return self._send_json({"error": "No file uploaded."}, 400)
+                    return self._send_json({"error": "No bill file uploaded. Please select an image or PDF."}, 400)
                 
+                # Determine file extension safely
+                ext = os.path.splitext(file_name)[1].lower()
+                if not ext or len(ext) < 2:
+                    ext = mimetypes.guess_extension(file_mime) or '.jpg'
+                if ext in ('.jpeg', '.jpg'):
+                    file_mime = 'image/jpeg'
+                elif ext == '.png':
+                    file_mime = 'image/png'
+                elif ext == '.pdf':
+                    file_mime = 'application/pdf'
+                elif ext == '.webp':
+                    file_mime = 'image/webp'
+                
+                # Save original file permanently in uploads/bills/
                 bill_id = f"BILL_{int(time.time())}_{secrets.token_hex(4)}"
-                ext = mimetypes.guess_extension(file_mime) or '.jpg'
                 saved_filename = f"{bill_id}{ext}"
                 saved_path = os.path.join(UPLOADS_DIR, saved_filename)
                 
@@ -605,7 +724,9 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     sf.write(file_bytes)
                 
                 relative_file_url = f"/uploads/bills/{saved_filename}"
+                print(f"[BILL STORE] Saved original invoice ({len(file_bytes)} bytes) to {saved_path}")
                 
+                # Analyze via Gemini Multimodal Document AI
                 extracted_data = call_gemini_multimodal_bill_parser(file_bytes, file_mime)
                 extracted_data["bill_id"] = bill_id
                 extracted_data["original_file_url"] = relative_file_url

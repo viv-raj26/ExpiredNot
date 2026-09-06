@@ -4,6 +4,8 @@ __pycache__/
 *.db
 .env
 .env.local
+*.pages
+api key*
 uploads/bills/*
 !uploads/bills/.gitkeep
 .DS_Store

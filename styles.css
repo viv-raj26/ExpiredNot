@@ -727,8 +727,10 @@ body {
 
 /* ==========================================================================
    VIEW 4: PRODUCTION WORKSPACE WITH VERTICAL LEFT SIDEBAR
-   ========================================================================== */
-.dashboard-layout { min-height: 100vh; display: flex; flex-direction: column; background-color: #f8fafc; }
+/* Global Visibility Rules */
+[hidden], .view-hidden, .demo-mode-banner[hidden], .demo-mode-banner.hidden {
+  display: none !important;
+}
 
 /* Demo Mode Banner */
 .demo-mode-banner {

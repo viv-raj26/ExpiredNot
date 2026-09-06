@@ -11,8 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const ACTIVE_SESSION_KEY = 'expirednot_active_session';
   const ACTIVE_TOKEN_KEY = 'expirednot_auth_token';
 
-  // Production Backend API URL (Render Deployment)
-  const API_BASE_URL = 'https://expirednot.onrender.com';
+  // Production Backend API URL (Same-origin relative URL for localhost & Render)
+  const API_BASE_URL = (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http')) ? '' : 'https://expirednot.onrender.com';
 
   let currentPharmacy = null;
   let sessionToken = localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || null;
@@ -39,9 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const loadPharmacyData = async (pharmacyId) => {
-    if (!pharmacyId) return;
+    if (!pharmacyId || isDemoMode) return;
     
-    // First try loading from backend
+    // 1. Fetch real batches from SQLite backend
     try {
       const res = await fetch(`${API_BASE_URL}/api/inventory`, { headers: getAuthHeaders() });
       if (res.ok) {
@@ -67,12 +67,35 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Backend offline, using scoped local storage cache:', e);
     }
 
-    // Load cached bills and movements
+    // 2. Fetch real bills from SQLite backend
+    try {
+      const billsRes = await fetch(`${API_BASE_URL}/api/bills`, { headers: getAuthHeaders() });
+      if (billsRes.ok) {
+        const billsData = await billsRes.json();
+        if (billsData.bills) {
+          pharmacyDb.bills = billsData.bills.map(b => ({
+            id: b.id,
+            distributor: b.distributor,
+            invoiceNo: b.invoice_no,
+            date: b.invoice_date,
+            totalAmount: b.total_amount,
+            originalFileUrl: b.original_file_path,
+            fileName: b.file_name,
+            itemsCount: b.items_count || 1,
+            timestamp: b.created_at ? new Date(b.created_at * 1000).toLocaleDateString() : 'Recent'
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch bills from backend:', e);
+    }
+
+    // 3. Fallback scoped local storage
     const raw = localStorage.getItem(`expirednot_data_${pharmacyId}`);
     if (raw) {
       try {
         const local = JSON.parse(raw);
-        pharmacyDb.bills = local.bills || [];
+        if (!pharmacyDb.bills.length && local.bills) pharmacyDb.bills = local.bills;
         pharmacyDb.movements = local.movements || [];
         pharmacyDb.expenses = local.expenses || [];
         pharmacyDb.notifications = local.notifications || [];
@@ -1798,7 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const setPipelineStep = (stepNumber) => {
     if (!billPipelineIndicator) return;
     billPipelineIndicator.hidden = false;
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 6; i++) {
       const stepEl = document.getElementById(`pipeStep${i}`);
       if (stepEl) {
         if (i < stepNumber) {
@@ -1818,46 +1841,56 @@ document.addEventListener('DOMContentLoaded', () => {
     if (billExtractionAlert) billExtractionAlert.hidden = true;
     if (ocrReviewContainer) ocrReviewContainer.hidden = true;
 
-    setPipelineStep(1); // Uploading
+    setPipelineStep(1); // 1. Uploading...
 
     const formData = new FormData();
     formData.append('bill', file);
 
-    try {
-      setTimeout(() => setPipelineStep(2), 300); // Reading document
-      setTimeout(() => setPipelineStep(3), 700); // Extracting bill information
+    const t2 = setTimeout(() => setPipelineStep(2), 400);  // 2. Reading document...
+    const t3 = setTimeout(() => setPipelineStep(3), 1200); // 3. Understanding invoice...
+    const t4 = setTimeout(() => setPipelineStep(4), 2200); // 4. Extracting bill information...
 
+    try {
       const res = await fetch(`${API_BASE_URL}/api/bills/analyze`, {
         method: 'POST',
         headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
         body: formData
       });
 
-      setPipelineStep(4); // Checking extracted fields
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+
+      setPipelineStep(5); // 5. Checking extracted fields...
 
       const data = await res.json();
 
       if (!res.ok || !data.success || !data.items || data.items.length === 0) {
-        // STRICT RULE: ZERO DUMMY FALLBACK MEDICINES (No Paracetamol / Azithromycin guessing!)
+        // STRICT ZERO DUMMY RULE: Never generate fake medicines on failure
         if (billPipelineIndicator) billPipelineIndicator.hidden = true;
         if (billExtractionAlert) {
           billExtractionAlert.hidden = false;
           const desc = document.getElementById('billExtractionAlertDesc');
-          if (desc) desc.textContent = data.error || 'Unable to confidently extract medicines from this image. Please review and enter details manually.';
+          if (desc) desc.textContent = data.error || 'Unable to confidently extract medicines from this document. Please review and enter details manually.';
         }
         return;
       }
 
-      setPipelineStep(5); // Ready for review
+      setPipelineStep(6); // 6. Ready for review.
       setTimeout(() => {
         if (billPipelineIndicator) billPipelineIndicator.hidden = true;
-      }, 1000);
+      }, 1200);
 
       loadSideBySideReview(data, file);
     } catch (e) {
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
       if (billPipelineIndicator) billPipelineIndicator.hidden = true;
       if (billExtractionAlert) {
         billExtractionAlert.hidden = false;
+        const desc = document.getElementById('billExtractionAlertDesc');
+        if (desc) desc.textContent = 'Connection error while processing bill. Please ensure server is running or enter details manually.';
       }
     }
   };
@@ -1874,15 +1907,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (simBillMeta) simBillMeta.textContent = `TAX INVOICE #${currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'INV-101'}`;
 
     if (file && originalBillPreviewImg) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        originalBillPreviewImg.src = e.target.result;
-        originalBillPreviewImg.style.display = 'block';
-      };
-      reader.readAsDataURL(file);
+      if (file.type === 'application/pdf') {
+        originalBillPreviewImg.style.display = 'none';
+        if (simBillTable) {
+          simBillTable.innerHTML = `
+            <div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+              <span style="font-size: 2rem;">📄</span>
+              <p style="font-weight: 700; margin: 0.5rem 0 0.25rem 0; color: #1e293b;">${file.name}</p>
+              <p style="font-size: 0.75rem; color: #64748b;">PDF Document (${(file.size / 1024).toFixed(1)} KB)</p>
+            </div>
+          `;
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          originalBillPreviewImg.src = e.target.result;
+          originalBillPreviewImg.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      }
     }
 
-    if (simBillTable) {
+    if (simBillTable && file && file.type !== 'application/pdf') {
       simBillTable.innerHTML = currentCapturedBill.items.map(item => `
         <div class="sim-line">
           <span>${item.name} (${item.batch_no || item.batchNo})</span>
@@ -2361,52 +2407,64 @@ document.addEventListener('DOMContentLoaded', () => {
   const demoModeBanner = document.getElementById('demoModeBanner');
   const exitDemoModeBtn = document.getElementById('exitDemoModeBtn');
 
+  // Presentation Sample Dataset (Completely Isolated from Real Pharmacy DB)
+  const presentationDemoData = {
+    batches: [
+      { id: 'DEMO_1', name: 'Augmentin 625 Duo Tablet', generic_name: 'Amoxicillin + Clavulanate', pack: '10s', batchNo: 'AUG-9821', expiryDate: '2026-09', quantity: 14, purchaseRate: 155, mrp: 204, rack: 'Rack A-2', distributor: 'Cipla Distributors', createdAt: new Date().toISOString() },
+      { id: 'DEMO_2', name: 'Pan-D Capsule (15s)', generic_name: 'Pantoprazole + Domperidone', pack: '15s', batchNo: 'PND-4410', expiryDate: '2026-09', quantity: 28, purchaseRate: 185, mrp: 245, rack: 'Rack B-1', distributor: 'Sun Pharma Agency', createdAt: new Date().toISOString() },
+      { id: 'DEMO_3', name: 'Telma-AM 40/5mg Tablet', generic_name: 'Telmisartan + Amlodipine', pack: '15s', batchNo: 'TLM-1092', expiryDate: '2026-10', quantity: 20, purchaseRate: 195, mrp: 260, rack: 'Rack C-4', distributor: 'Alkem Labs Branch', createdAt: new Date().toISOString() },
+      { id: 'DEMO_4', name: 'Rosuvas 10mg Tablet', generic_name: 'Rosuvastatin', pack: '10s', batchNo: 'RSV-3318', expiryDate: '2027-02', quantity: 40, purchaseRate: 140, mrp: 195, rack: 'Rack D-1', distributor: 'Sun Pharma Agency', createdAt: new Date().toISOString() }
+    ],
+    bills: [
+      { id: 'BILL_DEMO_1', distributor: 'Cipla Distributors', invoiceNo: 'CP-9812', date: '2026-08-10', totalAmount: 4200, itemsCount: 1, timestamp: '3 days ago' },
+      { id: 'BILL_DEMO_2', distributor: 'Sun Pharma Agency', invoiceNo: 'SP-3910', date: '2026-08-12', totalAmount: 6850, itemsCount: 2, timestamp: '1 day ago' }
+    ],
+    movements: [
+      { id: 'MOV_DEMO_1', timestamp: 'Yesterday', type: 'Sold', medicineName: 'Augmentin 625 Duo Tablet', batchNo: 'AUG-9821', quantity: 2, value: 310, notes: 'Counter Rx #1092' }
+    ],
+    expenses: [
+      { id: 'EXP_DEMO_1', date: '2026-08-01', category: 'Rent', desc: 'Shop monthly rent', amount: 25000 }
+    ],
+    notifications: [
+      { id: 'NOTIF_D1', text: 'Augmentin 625 Duo (AUG-9821) expires in 22 days. Dispense via FEFO.', type: 'expiry', timestamp: '1 hour ago', read: false }
+    ],
+    activity: [
+      { id: 'ACT_D1', text: 'Ingested Cipla Distributors Bill #CP-9812 (₹4,200)', timestamp: '3 days ago' }
+    ]
+  };
+
   if (loadDemoDataBtn) {
     loadDemoDataBtn.addEventListener('click', () => {
       isDemoMode = true;
       realDbBackup = JSON.parse(JSON.stringify(pharmacyDb));
+      pharmacyDb = JSON.parse(JSON.stringify(presentationDemoData));
 
-      pharmacyDb = {
-        batches: [
-          { id: 'DEMO_1', name: 'Augmentin 625 Duo Tablet', pack: '10s', batchNo: 'AUG-9821', expiryDate: '2026-09', quantity: 14, purchaseRate: 155, mrp: 204, rack: 'Rack A-2', distributor: 'Cipla Distributors', createdAt: new Date().toISOString() },
-          { id: 'DEMO_2', name: 'Pan-D Capsule (15s)', pack: '15s', batchNo: 'PND-4410', expiryDate: '2026-09', quantity: 28, purchaseRate: 185, mrp: 245, rack: 'Rack B-1', distributor: 'Sun Pharma Agency', createdAt: new Date().toISOString() },
-          { id: 'DEMO_3', name: 'Telma-AM 40/5mg Tablet', pack: '15s', batchNo: 'TLM-1092', expiryDate: '2026-10', quantity: 20, purchaseRate: 195, mrp: 260, rack: 'Rack C-4', distributor: 'Alkem Labs Branch', createdAt: new Date().toISOString() },
-          { id: 'DEMO_4', name: 'Rosuvas 10mg Tablet', pack: '10s', batchNo: 'RSV-3318', expiryDate: '2027-02', quantity: 40, purchaseRate: 140, mrp: 195, rack: 'Rack D-1', distributor: 'Sun Pharma Agency', createdAt: new Date().toISOString() }
-        ],
-        bills: [
-          { id: 'BILL_DEMO_1', distributor: 'Cipla Distributors', invoiceNo: 'CP-9812', date: '2026-08-10', totalAmount: 4200, itemsCount: 1, timestamp: '3 days ago' },
-          { id: 'BILL_DEMO_2', distributor: 'Sun Pharma Agency', invoiceNo: 'SP-3910', date: '2026-08-12', totalAmount: 6850, itemsCount: 2, timestamp: '1 day ago' }
-        ],
-        movements: [
-          { id: 'MOV_DEMO_1', timestamp: 'Yesterday', type: 'Sold', medicineName: 'Augmentin 625 Duo Tablet', batchNo: 'AUG-9821', quantity: 2, value: 310, notes: 'Counter Rx #1092' }
-        ],
-        expenses: [
-          { id: 'EXP_DEMO_1', date: '2026-08-01', category: 'Rent', desc: 'Shop monthly rent', amount: 25000 }
-        ],
-        notifications: [
-          { id: 'NOTIF_D1', text: 'Augmentin 625 Duo (AUG-9821) expires in 22 days. Dispense via FEFO.', type: 'expiry', timestamp: '1 hour ago', read: false }
-        ],
-        activity: [
-          { id: 'ACT_D1', text: 'Ingested Cipla Distributors Bill #CP-9812 (₹4,200)', timestamp: '3 days ago' }
-        ]
-      };
-
-      if (demoModeBanner) demoModeBanner.hidden = false;
+      if (demoModeBanner) {
+        demoModeBanner.hidden = false;
+        demoModeBanner.style.display = 'flex';
+      }
       refreshAllWorkspaceViews();
       switchWorkspaceTab('dashboard');
     });
   }
 
   if (exitDemoModeBtn) {
-    exitDemoModeBtn.addEventListener('click', () => {
+    exitDemoModeBtn.addEventListener('click', async () => {
       isDemoMode = false;
+      if (demoModeBanner) {
+        demoModeBanner.hidden = true;
+        demoModeBanner.style.display = 'none';
+      }
+
       if (realDbBackup) {
         pharmacyDb = realDbBackup;
       } else {
         pharmacyDb = { batches: [], bills: [], movements: [], expenses: [], notifications: [], activity: [] };
       }
 
-      if (demoModeBanner) demoModeBanner.hidden = true;
+      if (currentPharmacy && currentPharmacy.id) {
+        await loadPharmacyData(currentPharmacy.id);
+      }
       refreshAllWorkspaceViews();
     });
   }
@@ -2414,9 +2472,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (clearAllDataBtn) {
     clearAllDataBtn.addEventListener('click', () => {
       if (confirm('Are you sure you want to reset all records back to clean zero state?')) {
+        isDemoMode = false;
+        if (demoModeBanner) {
+          demoModeBanner.hidden = true;
+          demoModeBanner.style.display = 'none';
+        }
         pharmacyDb = { batches: [], bills: [], movements: [], expenses: [], notifications: [], activity: [] };
         savePharmacyData();
-        if (demoModeBanner) demoModeBanner.hidden = true;
         refreshAllWorkspaceViews();
         alert('Pharmacy inventory successfully reset to clean zero state.');
       }
@@ -2429,6 +2491,13 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchAuthConfig();
 
   const initSessionCheck = async () => {
+    // Ensure demo mode is OFF on boot
+    isDemoMode = false;
+    if (demoModeBanner) {
+      demoModeBanner.hidden = true;
+      demoModeBanner.style.display = 'none';
+    }
+
     if (sessionToken) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/session`, {
