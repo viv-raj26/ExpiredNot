@@ -22,8 +22,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.hostname.endsWith('.local')
   );
 
-  const API_BASE_URL = (typeof window !== 'undefined' && (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL))
-    ? (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL)
+  const API_BASE_URL = (typeof window !== 'undefined' && (
+    window.__EXPIREDNOT_API_URL__ || 
+    window.EXPIREDNOT_API_BASE_URL || 
+    window.VITE_API_URL || 
+    window.NEXT_PUBLIC_API_URL ||
+    window.REACT_APP_API_URL
+  ))
+    ? (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL || window.VITE_API_URL || window.NEXT_PUBLIC_API_URL || window.REACT_APP_API_URL)
     : (isLocalhost ? '' : 'https://expirednot.onrender.com');
 
   let currentPharmacy = null;

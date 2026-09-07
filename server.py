@@ -218,8 +218,14 @@ def hash_password(password, salt=None):
     return pwd_hash, salt
 
 def verify_password(password, pwd_hash, salt):
-    test_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
-    return hmac.compare_digest(test_hash, pwd_hash)
+    if not password or not pwd_hash or not salt:
+        return False
+    try:
+        test_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), str(salt).encode('utf-8'), 100000).hex()
+        return hmac.compare_digest(test_hash, str(pwd_hash))
+    except Exception as e:
+        print(f"[AUTH PASSWORD VERIFY ERROR]: {e}", file=sys.stderr)
+        return False
 
 def generate_secure_otp():
     return str(secrets.randbelow(900000) + 100000)
@@ -251,15 +257,21 @@ def mask_email(email_str):
 def send_email_otp(to_email, otp_code):
     """
     Dispatches 6-digit OTP directly to user's real email address.
-    Supports both Resend API (RESEND_API_KEY) and Gmail SMTP (GMAIL_USER + GMAIL_APP_PASSWORD).
+    Checks configured providers:
+    1. Resend API (RESEND_API_KEY)
+    2. Gmail SMTP (GMAIL_USER + GMAIL_APP_PASSWORD)
+    3. Brevo API (BREVO_API_KEY)
+    Returns: (success: bool, error_message: str)
     """
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    from_email = os.environ.get("FROM_EMAIL", os.environ.get("RESEND_FROM", "EXPIREDNOT <onboarding@resend.dev>")).strip()
+    
     # 1. Try Resend API if configured
-    resend_key = os.environ.get("RESEND_API_KEY", "")
     if resend_key:
         try:
             url = "https://api.resend.com/emails"
             payload = {
-                "from": "EXPIREDNOT <onboarding@resend.dev>",
+                "from": from_email,
                 "to": [to_email],
                 "subject": f"{otp_code} is your EXPIREDNOT verification code",
                 "html": f"""
@@ -281,13 +293,22 @@ def send_email_otp(to_email, otp_code):
             with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status in (200, 201):
                     print(f"[RESEND EMAIL SUCCESS] Dispatched OTP to {to_email}", file=sys.stdout)
-                    return True
+                    return True, ""
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode('utf-8')
+            except Exception:
+                pass
+            print(f"[RESEND EMAIL ERROR]: HTTP {e.code} {e.reason}: {err_body}", file=sys.stderr)
+            if e.code == 403 and "onboarding@resend.dev" in from_email:
+                print(f"[RESEND POLICY NOTE]: onboarding@resend.dev only permits sending to the Resend account owner. Checking configured fallbacks...", file=sys.stderr)
         except Exception as e:
             print(f"[RESEND EMAIL ERROR]: {e}", file=sys.stderr)
 
     # 2. Try Gmail SMTP if configured
-    gmail_user = os.environ.get("GMAIL_USER", "")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+    gmail_user = os.environ.get("GMAIL_USER", "").strip()
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "").strip()
     if gmail_user and gmail_pass:
         try:
             import smtplib
@@ -315,12 +336,49 @@ def send_email_otp(to_email, otp_code):
                 server.login(gmail_user, gmail_pass)
                 server.sendmail(gmail_user, [to_email], msg.as_string())
             print(f"[GMAIL SMTP SUCCESS] Dispatched OTP to {to_email}", file=sys.stdout)
-            return True
+            return True, ""
         except Exception as e:
             print(f"[GMAIL SMTP ERROR]: {e}", file=sys.stderr)
 
-    print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}", file=sys.stdout)
-    return False
+    # 3. Try Brevo API if configured
+    brevo_key = os.environ.get("BREVO_API_KEY", "").strip()
+    if brevo_key:
+        try:
+            b_url = "https://api.brevo.com/v3/smtp/email"
+            b_from_email = os.environ.get("BREVO_FROM_EMAIL", os.environ.get("FROM_EMAIL", gmail_user or "onboarding@resend.dev")).strip()
+            b_payload = {
+                "sender": {"name": "EXPIREDNOT", "email": b_from_email},
+                "to": [{"email": to_email}],
+                "subject": f"{otp_code} is your EXPIREDNOT verification code",
+                "htmlContent": f"""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                    <h2 style="color: #059669; margin: 0 0 12px 0;">EXPIREDNOT</h2>
+                    <p style="font-size: 15px; color: #334155; line-height: 1.5;">Here is your 6-digit verification code to access your pharmacy workspace:</p>
+                    <div style="background: #ecfdf5; border: 1.5px dashed #10b981; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+                        <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;">{otp_code}</span>
+                    </div>
+                    <p style="font-size: 13px; color: #64748b; margin: 0;">Valid for <strong>5 minutes</strong>. Never share this code with anyone.</p>
+                </div>
+                """
+            }
+            b_req = urllib.request.Request(
+                b_url,
+                data=json.dumps(b_payload).encode('utf-8'),
+                headers={'api-key': brevo_key, 'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(b_req, timeout=10) as resp:
+                if resp.status in (200, 201):
+                    print(f"[BREVO EMAIL SUCCESS] Dispatched OTP to {to_email}", file=sys.stdout)
+                    return True, ""
+        except Exception as e:
+            print(f"[BREVO EMAIL ERROR]: {e}", file=sys.stderr)
+
+    # In local development if no keys are configured, log to stdout
+    if not resend_key and not (gmail_user and gmail_pass) and not brevo_key:
+        print(f"[DEV CONSOLE OTP] Verification OTP for {to_email}: {otp_code}", file=sys.stdout)
+        return True, ""
+
+    return False, "Email provider failed to deliver code. Please verify sender domain in Resend or configure Gmail/Brevo credentials."
 
 # ==============================================================================
 # GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
@@ -827,6 +885,15 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 now = int(time.time())
                 expires_at = now + (5 * 60)
                 
+                # Verify email delivery BEFORE saving active OTP state
+                sent_ok, err_reason = send_email_otp(email, otp_code)
+                if not sent_ok:
+                    return self._send_json({
+                        "error": "We couldn't send the verification email. Please try again.",
+                        "details": err_reason,
+                        "email_delivery_failed": True
+                    }, 502)
+                
                 cursor.execute('''
                     INSERT OR REPLACE INTO otps (email, otp_hash, salt, expires_at, attempts, created_at)
                     VALUES (?, ?, ?, ?, 0, ?)
@@ -844,10 +911,8 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     cursor.execute("UPDATE users SET password_hash = ?, salt = ? WHERE email = ?", (pwd_h, pwd_salt, email))
                 
                 conn.commit()
-                
-            threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
             
-            print(f"[SECURITY OTP DISPATCH] 6-Digit Email OTP for {email}: {otp_code} (Expires in 5m)", file=sys.stdout)
+            print(f"[SECURITY OTP DISPATCH] 6-Digit Email OTP dispatched for {email}", file=sys.stdout)
             
             return self._send_json({
                 "success": True,
@@ -924,14 +989,21 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 new_h, new_salt = hash_otp(new_otp)
                 expires_at = now + (5 * 60)
                 
+                sent_ok, err_reason = send_email_otp(email, new_otp)
+                if not sent_ok:
+                    return self._send_json({
+                        "error": "We couldn't send the verification email. Please try again.",
+                        "details": err_reason,
+                        "email_delivery_failed": True
+                    }, 502)
+                
                 cursor.execute('''
                     INSERT OR REPLACE INTO otps (email, otp_hash, salt, expires_at, attempts, created_at)
                     VALUES (?, ?, ?, ?, 0, ?)
                 ''', (email, new_h, new_salt, expires_at, now))
                 conn.commit()
                 
-            threading.Thread(target=send_email_otp, args=(email, new_otp), daemon=True).start()
-            print(f"[SECURITY OTP RESEND] New 6-Digit OTP for {email}: {new_otp}", file=sys.stdout)
+            print(f"[SECURITY OTP RESEND] New OTP dispatched for {email}", file=sys.stdout)
             return self._send_json({
                 "success": True, 
                 "message": "New verification code sent to your email."
@@ -954,6 +1026,18 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     wait_time = 30 - (now - existing_otp['created_at'])
                     return self._send_json({"error": f"Please wait {wait_time}s before requesting a new code."}, 429)
                 
+                otp_code = generate_secure_otp()
+                otp_h, otp_salt = hash_otp(otp_code)
+                expires_at = now + (5 * 60)
+                
+                sent_ok, err_reason = send_email_otp(email, otp_code)
+                if not sent_ok:
+                    return self._send_json({
+                        "error": "We couldn't send the verification email. Please try again.",
+                        "details": err_reason,
+                        "email_delivery_failed": True
+                    }, 502)
+                
                 if not user:
                     user_id = f"USR_{int(time.time())}_{secrets.token_hex(4)}"
                     cursor.execute('''
@@ -961,18 +1045,13 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                         VALUES (?, ?, 0, 0, ?)
                     ''', (user_id, email, now))
                 
-                otp_code = generate_secure_otp()
-                otp_h, otp_salt = hash_otp(otp_code)
-                expires_at = now + (5 * 60)
-                
                 cursor.execute('''
                     INSERT OR REPLACE INTO otps (email, otp_hash, salt, expires_at, attempts, created_at)
                     VALUES (?, ?, ?, ?, 0, ?)
                 ''', (email, otp_h, otp_salt, expires_at, now))
                 conn.commit()
                 
-            threading.Thread(target=send_email_otp, args=(email, otp_code), daemon=True).start()
-            print(f"[SECURITY LOGIN OTP] Dispatched code for {email}: {otp_code}", file=sys.stdout)
+            print(f"[SECURITY LOGIN OTP] Dispatched code for {email}", file=sys.stdout)
             return self._send_json({
                 "success": True,
                 "message": "Login code sent to your email.",
@@ -997,26 +1076,41 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
                 if not user:
                     return self._send_json({
-                        "error": "We couldn't find an account with these details. Create your pharmacy account to get started.",
+                        "error": "No EXPIREDNOT account was found. Please create an account.",
                         "not_found": True
                     }, 404)
                     
-                if not verify_password(password, user['password_hash'], user['salt']):
-                    return self._send_json({"error": "Incorrect password. Please try again."}, 400)
+                user_dict = dict(user)
+                
+                # Handle accounts created via Google OAuth or passwordless OTP
+                if not user_dict.get('password_hash') or not user_dict.get('salt'):
+                    if user_dict.get('auth_provider') == 'google':
+                        return self._send_json({
+                            "error": "This account uses Google Sign-In. Please continue with Google.",
+                            "is_google_account": True
+                        }, 400)
+                    else:
+                        return self._send_json({
+                            "error": "This account was created without a password. Please sign in with Email OTP.",
+                            "needs_otp_login": True
+                        }, 400)
                     
-                if not user['email_verified']:
+                if not verify_password(password, user_dict.get('password_hash'), user_dict.get('salt')):
+                    return self._send_json({"error": "Email or password is incorrect."}, 400)
+                    
+                if not user_dict.get('email_verified'):
                     return self._send_json({
                         "error": "Email address not yet verified.",
                         "needs_verification": True,
-                        "email": user['email']
+                        "email": user_dict.get('email')
                     }, 403)
                     
-                if not user['setup_completed']:
+                if not user_dict.get('setup_completed'):
                     now = int(time.time())
                     token = secrets.token_hex(32)
-                    cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + 86400, now))
+                    cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user_dict['id'], now + 86400, now))
                     conn.commit()
-                    clean_user = sanitize_user(user)
+                    clean_user = sanitize_user(user_dict)
                     return self._send_json({
                         "success": True,
                         "needs_setup": True,
@@ -1026,13 +1120,13 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     
                 now = int(time.time())
                 token = secrets.token_hex(32)
-                cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user['id'], now + (30 * 86400), now))
+                cursor.execute("INSERT INTO sessions VALUES (?, ?, ?, ?)", (token, user_dict['id'], now + (30 * 86400), now))
                 conn.commit()
                 
             return self._send_json({
                 "success": True,
                 "session_token": token,
-                "user": sanitize_user(user)
+                "user": sanitize_user(user_dict)
             })
 
         elif path == '/api/auth/google':
