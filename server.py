@@ -251,8 +251,9 @@ def mask_email(email_str):
 def send_email_otp(to_email, otp_code):
     """
     Dispatches 6-digit OTP directly to user's real email address.
-    Uses the Resend API.
+    Supports both Resend API (RESEND_API_KEY) and Gmail SMTP (GMAIL_USER + GMAIL_APP_PASSWORD).
     """
+    # 1. Try Resend API if configured
     resend_key = os.environ.get("RESEND_API_KEY", "")
     if resend_key:
         try:
@@ -279,12 +280,46 @@ def send_email_otp(to_email, otp_code):
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status in (200, 201):
-                    print(f"[RESEND EMAIL SUCCESS] Dispatched OTP to {to_email}")
+                    print(f"[RESEND EMAIL SUCCESS] Dispatched OTP to {to_email}", file=sys.stdout)
                     return True
         except Exception as e:
             print(f"[RESEND EMAIL ERROR]: {e}", file=sys.stderr)
 
-    print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}")
+    # 2. Try Gmail SMTP if configured
+    gmail_user = os.environ.get("GMAIL_USER", "")
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+    if gmail_user and gmail_pass:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"{otp_code} is your EXPIREDNOT verification code"
+            msg['From'] = f"EXPIREDNOT <{gmail_user}>"
+            msg['To'] = to_email
+
+            html_body = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                <h2 style="color: #059669; margin: 0 0 12px 0;">EXPIREDNOT</h2>
+                <p style="font-size: 15px; color: #334155; line-height: 1.5;">Here is your 6-digit verification code to access your pharmacy workspace:</p>
+                <div style="background: #ecfdf5; border: 1.5px dashed #10b981; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+                    <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #047857; font-family: monospace;">{otp_code}</span>
+                </div>
+                <p style="font-size: 13px; color: #64748b; margin: 0;">Valid for <strong>5 minutes</strong>. Never share this code with anyone.</p>
+            </div>
+            """
+            msg.attach(MIMEText(html_body, 'html'))
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
+                server.login(gmail_user, gmail_pass)
+                server.sendmail(gmail_user, [to_email], msg.as_string())
+            print(f"[GMAIL SMTP SUCCESS] Dispatched OTP to {to_email}", file=sys.stdout)
+            return True
+        except Exception as e:
+            print(f"[GMAIL SMTP ERROR]: {e}", file=sys.stderr)
+
+    print(f"[SECURE OTP LOG] 6-Digit Email OTP for {to_email}: {otp_code}", file=sys.stdout)
     return False
 
 # ==============================================================================
@@ -517,14 +552,35 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
 # ==============================================================================
 class ExpiredNotHandler(BaseHTTPRequestHandler):
     
+    def _set_cors_headers(self):
+        origin = self.headers.get('Origin') or self.headers.get('origin')
+        allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "") or os.environ.get("FRONTEND_URL", "")
+        
+        if allowed_origins_env and allowed_origins_env.strip() != '*':
+            allowed_list = [o.strip().rstrip('/') for o in allowed_origins_env.split(',') if o.strip()]
+            if origin and (origin.rstrip('/') in allowed_list or '*' in allowed_list):
+                self.send_header('Access-Control-Allow-Origin', origin)
+                self.send_header('Access-Control-Allow-Credentials', 'true')
+            else:
+                self.send_header('Access-Control-Allow-Origin', allowed_list[0] if allowed_list else (origin or '*'))
+                self.send_header('Access-Control-Allow-Credentials', 'true')
+        else:
+            if origin:
+                self.send_header('Access-Control-Allow-Origin', origin)
+                self.send_header('Access-Control-Allow-Credentials', 'true')
+            else:
+                self.send_header('Access-Control-Allow-Origin', '*')
+                
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cookie, Accept, Origin')
+        self.send_header('Access-Control-Max-Age', '86400')
+
     def _send_json(self, data, status=200):
         body = json.dumps(data).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self._set_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -555,17 +611,24 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         return None
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_response(204)
+        self._set_cors_headers()
         self.end_headers()
 
     def do_GET(self):
         url_parsed = urllib.parse.urlparse(self.path)
         path = url_parsed.path
         
-        if path in ('/api/config/auth', '/api/config/auth-status'):
+        if path in ('/health', '/api/health'):
+            return self._send_json({
+                "status": "ok",
+                "service": "EXPIREDNOT",
+                "version": "1.0.0",
+                "timestamp": int(time.time()),
+                "database": "connected"
+            })
+
+        elif path in ('/api/config/auth', '/api/config/auth-status'):
             g_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
             return self._send_json({
                 "google_client_id": g_client_id,
@@ -1191,7 +1254,15 @@ def app(environ, start_response):
                 self.do_OPTIONS()
 
         def send_response(self, code, message=None):
-            self.status_line = f"{code} {'OK' if code == 200 else 'Response'}"
+            status_phrases = {
+                200: "OK", 201: "Created", 204: "No Content",
+                400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+                404: "Not Found", 405: "Method Not Allowed", 409: "Conflict",
+                422: "Unprocessable Entity", 429: "Too Many Requests",
+                500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable"
+            }
+            phrase = message or status_phrases.get(code, "OK")
+            self.status_line = f"{code} {phrase}"
 
         def send_header(self, keyword, value):
             self.headers_set.append((keyword, str(value)))

@@ -11,8 +11,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const ACTIVE_SESSION_KEY = 'expirednot_active_session';
   const ACTIVE_TOKEN_KEY = 'expirednot_auth_token';
 
-  // Production Backend API URL (Same-origin relative URL for localhost & Render)
-  const API_BASE_URL = (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http')) ? '' : 'https://expirednot.onrender.com';
+  // Production Backend API URL Resolution:
+  // When running locally (localhost / 127.0.0.1), use relative '' so it talks to local server.py.
+  // When deployed to Vercel (or any other production host), route directly to deployed Render backend.
+  const isLocalhost = typeof window !== 'undefined' && window.location && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '0.0.0.0' ||
+    window.location.hostname.startsWith('192.168.') ||
+    window.location.hostname.endsWith('.local')
+  );
+
+  const API_BASE_URL = (typeof window !== 'undefined' && (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL))
+    ? (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL)
+    : (isLocalhost ? '' : 'https://expirednot.onrender.com');
 
   let currentPharmacy = null;
   let sessionToken = localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || null;
@@ -321,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (signInButton) signInButton.disabled = false;
         if (signInBtnText) signInBtnText.textContent = 'Sign In';
-        showAuthNotice('Connection error. Please try again.', 'error');
+        showAuthNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
       }
     });
   }
@@ -352,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loginWithOtpBtn.textContent = '📧 Sign in with Email OTP';
 
         if (!res.ok) {
-          showAuthNotice(data.error || 'Failed to send login code.', 'error');
+          showAuthNotice(data.error || 'Unable to send verification email. Please try again.', 'error');
           return;
         }
 
@@ -374,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) {
         loginWithOtpBtn.disabled = false;
         loginWithOtpBtn.textContent = '📧 Sign in with Email OTP';
-        showAuthNotice('Unable to connect to server. Please try again.', 'error');
+        showAuthNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
       }
     });
   }
@@ -464,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
         goToOnboardingStep(3); // Direct to Pharmacy Details
       }
     } catch (e) {
-      showAuthNotice('Unable to connect to server. Please try again.', 'error');
+      showAuthNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
     }
   };
 
@@ -696,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
 
         if (!res.ok) {
-          showSignupNotice(data.error || 'Failed to send verification code.', 'error');
+          showSignupNotice(data.error || 'Unable to send verification email. Please check your email address.', 'error');
           return;
         }
 
@@ -719,7 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (sendOtpBtn) sendOtpBtn.disabled = false;
         if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
-        showSignupNotice('Unable to connect to server. Please ensure local server is running.', 'error');
+        showSignupNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
       }
     });
   }
@@ -803,14 +815,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const data = await res.json();
         if (!res.ok) {
-          showOtpNotice(data.error || 'Failed to resend code.', 'error');
+          showOtpNotice(data.error || 'Unable to send verification email. Please try again.', 'error');
           return;
         }
         startResendTimer();
         clearOtpBoxes();
         showOtpNotice('A new verification code has been dispatched to your email.', 'info');
       } catch {
-        showOtpNotice('Connection error while resending code.', 'error');
+        showOtpNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
       }
     });
   }
@@ -881,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (verifyOtpBtn) verifyOtpBtn.disabled = false;
         if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Verify Email →';
-        showOtpNotice('Connection error during verification.', 'error');
+        showOtpNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
       }
     });
   }
@@ -1021,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (finishSetupBtn) finishSetupBtn.disabled = false;
         if (finishSetupBtnText) finishSetupBtnText.textContent = 'Finish Setup →';
-        alert('Connection error during pharmacy setup.');
+        alert('Unable to reach EXPIREDNOT server. Please check your internet connection.');
       }
     });
   }
@@ -1890,7 +1902,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (billExtractionAlert) {
         billExtractionAlert.hidden = false;
         const desc = document.getElementById('billExtractionAlertDesc');
-        if (desc) desc.textContent = 'Connection error while processing bill. Please ensure server is running or enter details manually.';
+        if (desc) desc.textContent = 'Unable to reach EXPIREDNOT server. Please check your internet connection or enter details manually.';
       }
     }
   };
@@ -2188,7 +2200,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         ocrConfirmSaveBtn.disabled = false;
         ocrConfirmSaveBtn.textContent = 'Confirm & Add to Inventory →';
-        alert('Connection error while saving bill to inventory.');
+        alert('Unable to reach EXPIREDNOT server. Please check your internet connection.');
       }
     });
   }
