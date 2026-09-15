@@ -382,12 +382,115 @@ def send_email_otp(to_email, otp_code):
     return False, "Email provider failed to deliver code. Please verify sender domain in Resend or configure Gmail/Brevo credentials."
 
 # ==============================================================================
-# GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE
+# GEMINI MULTIMODAL DOCUMENT AI BILL EXTRACTION SERVICE (SOURCE-OF-TRUTH ENGINE)
 # ==============================================================================
+def validate_extracted_bill(data):
+    """
+    Strict non-mutating validation for extracted pharmacy purchase bills.
+    Inspects header and line items for missing fields, malformed dates, suspicious numbers,
+    and inconsistencies. NEVER synthesizes or guesses fallback values.
+    Annotates `needs_verification = True` and records validation issues.
+    """
+    if not isinstance(data, dict):
+        return {"is_valid": False, "issues": ["Invalid bill structure"], "items_flagged": 0}
+        
+    issues = []
+    items = data.get('items', [])
+    items_flagged = 0
+    
+    # Header validations
+    distributor = data.get('distributor')
+    invoice_no = data.get('invoice_no')
+    invoice_date = data.get('invoice_date')
+    
+    if not distributor or not str(distributor).strip():
+        issues.append("Seller/Distributor name could not be identified from bill.")
+    if not invoice_no or not str(invoice_no).strip():
+        issues.append("Invoice/Bill number could not be identified from bill.")
+    if not invoice_date or not str(invoice_date).strip():
+        issues.append("Invoice date could not be identified from bill.")
+        
+    # Item validations
+    seen_batches = set()
+    current_year = time.gmtime().tm_year
+    
+    for idx, it in enumerate(items):
+        item_issues = []
+        name = (it.get('name') or '').strip()
+        batch_no = (it.get('batch_no') or '').strip()
+        exp = (it.get('expiry_date') or '').strip()
+        qty = it.get('quantity')
+        rate = it.get('purchase_rate')
+        mrp = it.get('mrp')
+        
+        if not name:
+            item_issues.append("Missing medicine name")
+            
+        if not batch_no:
+            item_issues.append("Missing batch number")
+            
+        if not exp:
+            item_issues.append("Missing expiry date")
+        else:
+            # Check date format and range
+            cleaned_exp = exp.replace('/', '-').replace('.', '-')
+            parts = cleaned_exp.split('-')
+            valid_exp_syntax = False
+            
+            if len(parts) == 2:
+                p1, p2 = parts[0], parts[1]
+                if len(p1) == 4 and p1.isdigit() and p2.isdigit(): # YYYY-MM
+                    y, m = int(p1), int(p2)
+                    if 1 <= m <= 12 and (current_year - 5) <= y <= (current_year + 20):
+                        valid_exp_syntax = True
+                elif p1.isdigit() and len(p2) in (2, 4) and p2.isdigit(): # MM-YY or MM-YYYY
+                    m = int(p1)
+                    y = int(p2) if len(p2) == 4 else (2000 + int(p2))
+                    if 1 <= m <= 12 and (current_year - 5) <= y <= (current_year + 20):
+                        valid_exp_syntax = True
+            elif len(parts) == 3: # DD-MM-YYYY or YYYY-MM-DD
+                valid_exp_syntax = True
+                
+            if not valid_exp_syntax:
+                item_issues.append(f"Uncertain or malformed expiry date ('{exp}')")
+                
+        if qty is None or qty <= 0:
+            item_issues.append("Quantity missing or invalid")
+            
+        if rate is None or rate < 0:
+            item_issues.append("Purchase rate missing or invalid")
+            
+        if mrp is not None and rate is not None and mrp < rate:
+            item_issues.append(f"MRP (₹{mrp}) is lower than purchase rate (₹{rate})")
+            
+        if name and batch_no:
+            key = (name.upper(), batch_no.upper())
+            if key in seen_batches:
+                item_issues.append(f"Duplicate line item with same batch ({batch_no})")
+            seen_batches.add(key)
+            
+        if item_issues:
+            items_flagged += 1
+            it['needs_verification'] = True
+            it['conf'] = 'needs_verification'
+            it['validation_notes'] = item_issues
+        else:
+            it['validation_notes'] = []
+            
+    summary = {
+        "is_valid": len(issues) == 0 and items_flagged == 0,
+        "header_issues": issues,
+        "total_items": len(items),
+        "items_flagged": items_flagged
+    }
+    data['validation_summary'] = summary
+    return summary
+
 def normalize_extracted_bill(raw_data):
     """
-    Validates and normalizes structured JSON returned by Gemini Multimodal Document AI.
-    Never injects fake fallback medicines.
+    Normalizes structured JSON returned by Gemini Multimodal Document AI.
+    Strict Source-of-Truth: preserves exact printed characters and nulls.
+    NEVER injects fabricated defaults, estimated prices, or synthetic dates.
     """
     if not isinstance(raw_data, dict):
         return None
@@ -404,54 +507,91 @@ def normalize_extracted_bill(raw_data):
         if not name:
             continue
         
-        batch_no = str(it.get('batch_no') or it.get('batch_number') or it.get('batch') or '').strip().upper()
-        expiry_date = str(it.get('expiry_date') or it.get('expiry') or it.get('exp_date') or it.get('exp') or '').strip()
+        batch_raw = it.get('batch_no') or it.get('batch_number') or it.get('batch')
+        batch_no = str(batch_raw).strip().upper() if batch_raw is not None and str(batch_raw).strip().lower() not in ('null', 'none', '') else None
         
-        try:
-            quantity = float(it.get('quantity') or it.get('qty') or 1)
-        except (ValueError, TypeError):
-            quantity = 1.0
-            
-        try:
-            free_qty = float(it.get('free_qty') or it.get('free_quantity') or it.get('free') or 0)
-        except (ValueError, TypeError):
-            free_qty = 0.0
+        expiry_raw = it.get('expiry_date') or it.get('expiry') or it.get('exp_date') or it.get('exp')
+        expiry_date = str(expiry_raw).strip() if expiry_raw is not None and str(expiry_raw).strip().lower() not in ('null', 'none', '') else None
+        
+        # Parse numeric fields safely without synthetic fallbacks
+        quantity = None
+        raw_qty = it.get('quantity') if it.get('quantity') is not None else it.get('qty')
+        if raw_qty is not None and str(raw_qty).strip().lower() not in ('null', 'none', ''):
+            try:
+                quantity = float(raw_qty)
+            except (ValueError, TypeError):
+                quantity = None
+                
+        free_qty = None
+        raw_free = it.get('free_qty') if it.get('free_qty') is not None else (it.get('free_quantity') if it.get('free_quantity') is not None else it.get('free'))
+        if raw_free is not None and str(raw_free).strip().lower() not in ('null', 'none', ''):
+            try:
+                free_qty = float(raw_free)
+            except (ValueError, TypeError):
+                free_qty = None
 
-        try:
-            purchase_rate = float(it.get('purchase_rate') or it.get('purchase_price') or it.get('rate') or it.get('unit_price') or 0)
-        except (ValueError, TypeError):
-            purchase_rate = 0.0
+        purchase_rate = None
+        raw_rate = it.get('purchase_rate') if it.get('purchase_rate') is not None else (it.get('purchase_price') if it.get('purchase_price') is not None else (it.get('rate') if it.get('rate') is not None else it.get('unit_price')))
+        if raw_rate is not None and str(raw_rate).strip().lower() not in ('null', 'none', ''):
+            try:
+                purchase_rate = float(raw_rate)
+            except (ValueError, TypeError):
+                purchase_rate = None
 
-        try:
-            mrp = float(it.get('mrp') or it.get('max_retail_price') or (purchase_rate * 1.3))
-        except (ValueError, TypeError):
-            mrp = round(purchase_rate * 1.3, 2)
+        mrp = None
+        raw_mrp = it.get('mrp') if it.get('mrp') is not None else it.get('max_retail_price')
+        if raw_mrp is not None and str(raw_mrp).strip().lower() not in ('null', 'none', ''):
+            try:
+                mrp = float(raw_mrp)
+            except (ValueError, TypeError):
+                mrp = None
 
-        try:
-            tax_pct = float(it.get('tax_pct') or it.get('tax_percentage') or it.get('gst') or it.get('gst_pct') or 0)
-        except (ValueError, TypeError):
-            tax_pct = 0.0
+        tax_pct = None
+        raw_tax = it.get('tax_pct') if it.get('tax_pct') is not None else (it.get('tax_percentage') if it.get('tax_percentage') is not None else (it.get('gst') if it.get('gst') is not None else it.get('gst_pct')))
+        if raw_tax is not None and str(raw_tax).strip().lower() not in ('null', 'none', ''):
+            try:
+                tax_pct = float(raw_tax)
+            except (ValueError, TypeError):
+                tax_pct = None
 
-        try:
-            discount = float(it.get('discount') or it.get('disc') or 0)
-        except (ValueError, TypeError):
-            discount = 0.0
+        discount = None
+        raw_disc = it.get('discount') if it.get('discount') is not None else it.get('disc')
+        if raw_disc is not None and str(raw_disc).strip().lower() not in ('null', 'none', ''):
+            try:
+                discount = float(raw_disc)
+            except (ValueError, TypeError):
+                discount = None
 
-        line_total = it.get('line_total') or it.get('total')
-        try:
-            line_total = float(line_total) if line_total is not None else round(quantity * purchase_rate, 2)
-        except (ValueError, TypeError):
+        line_total = None
+        raw_lt = it.get('line_total') if it.get('line_total') is not None else it.get('total')
+        if raw_lt is not None and str(raw_lt).strip().lower() not in ('null', 'none', ''):
+            try:
+                line_total = float(raw_lt)
+            except (ValueError, TypeError):
+                line_total = None
+        elif quantity is not None and purchase_rate is not None:
             line_total = round(quantity * purchase_rate, 2)
 
         conf = str(it.get('conf') or it.get('confidence') or 'high').lower()
-        needs_verif = bool(it.get('needs_verification') or not batch_no or not expiry_date or 'need' in conf or 'low' in conf or 'unverif' in conf)
+        needs_verif = bool(
+            it.get('needs_verification') or
+            not batch_no or
+            not expiry_date or
+            quantity is None or
+            purchase_rate is None or
+            'need' in conf or
+            'low' in conf or
+            'unverif' in conf
+        )
         
-        if 'low' in conf or 'need' in conf or not batch_no or not expiry_date:
+        if 'low' in conf or 'need' in conf or not batch_no or not expiry_date or quantity is None or purchase_rate is None:
             conf = 'needs_verification'
         elif 'med' in conf:
             conf = 'medium'
         else:
             conf = 'high'
+
+        pack = str(it.get('pack') or it.get('pack_size') or '').strip() or None
 
         normalized_items.append({
             "name": name,
@@ -460,7 +600,7 @@ def normalize_extracted_bill(raw_data):
             "manufacturer": it.get('manufacturer') or it.get('mfg_by') or None,
             "strength": it.get('strength') or None,
             "dosage_form": it.get('dosage_form') or it.get('form') or None,
-            "pack": it.get('pack') or it.get('pack_size') or '10s',
+            "pack": pack,
             "batch_no": batch_no,
             "mfg_date": it.get('mfg_date') or it.get('manufacturing_date') or None,
             "expiry_date": expiry_date,
@@ -479,18 +619,36 @@ def normalize_extracted_bill(raw_data):
     if not normalized_items:
         return None
 
-    total_amount = raw_data.get('total_amount') or raw_data.get('grand_total') or raw_data.get('net_amount')
-    try:
-        total_amount = float(total_amount) if total_amount is not None else sum(i['line_total'] for i in normalized_items)
-    except (ValueError, TypeError):
-        total_amount = sum(i['line_total'] for i in normalized_items)
+    raw_tot = raw_data.get('total_amount') if raw_data.get('total_amount') is not None else (raw_data.get('grand_total') if raw_data.get('grand_total') is not None else raw_data.get('net_amount'))
+    total_amount = None
+    if raw_tot is not None and str(raw_tot).strip().lower() not in ('null', 'none', ''):
+        try:
+            total_amount = float(raw_tot)
+        except (ValueError, TypeError):
+            total_amount = None
+    if total_amount is None:
+        valid_line_totals = [i['line_total'] for i in normalized_items if i['line_total'] is not None]
+        if valid_line_totals:
+            total_amount = round(sum(valid_line_totals), 2)
 
     seller_dict = raw_data.get('seller') if isinstance(raw_data.get('seller'), dict) else {}
     buyer_dict = raw_data.get('buyer') if isinstance(raw_data.get('buyer'), dict) else {}
 
-    return {
+    distributor = raw_data.get('distributor') or raw_data.get('seller_name') or seller_dict.get('name') or None
+    invoice_no = raw_data.get('invoice_no') or raw_data.get('bill_no') or None
+    invoice_date = raw_data.get('invoice_date') or raw_data.get('bill_date') or None
+
+    def _get_float_or_zero(val):
+        if val is None or str(val).strip().lower() in ('null', 'none', ''):
+            return 0.0
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return 0.0
+
+    normalized_doc = {
         "success": True,
-        "distributor": raw_data.get('distributor') or raw_data.get('seller_name') or seller_dict.get('name') or 'Wholesale Supplier',
+        "distributor": str(distributor).strip() if distributor else None,
         "seller_address": raw_data.get('seller_address') or seller_dict.get('address') or None,
         "seller_phone": raw_data.get('seller_phone') or seller_dict.get('phone') or None,
         "seller_gstin": raw_data.get('seller_gstin') or seller_dict.get('gstin') or None,
@@ -499,27 +657,34 @@ def normalize_extracted_bill(raw_data):
         "buyer_address": raw_data.get('buyer_address') or buyer_dict.get('address') or None,
         "buyer_phone": raw_data.get('buyer_phone') or buyer_dict.get('phone') or None,
         "buyer_gstin": raw_data.get('buyer_gstin') or buyer_dict.get('gstin') or None,
-        "invoice_no": raw_data.get('invoice_no') or raw_data.get('bill_no') or f"INV-{secrets.token_hex(3).upper()}",
-        "invoice_date": raw_data.get('invoice_date') or raw_data.get('bill_date') or time.strftime('%Y-%m-%d'),
+        "invoice_no": str(invoice_no).strip() if invoice_no else None,
+        "invoice_date": str(invoice_date).strip() if invoice_date else None,
         "purchase_date": raw_data.get('purchase_date') or None,
         "due_date": raw_data.get('due_date') or None,
         "payment_terms": raw_data.get('payment_terms') or None,
-        "subtotal": float(raw_data.get('subtotal', 0) or 0),
-        "taxable_amount": float(raw_data.get('taxable_amount', 0) or 0),
-        "cgst": float(raw_data.get('cgst', 0) or 0),
-        "sgst": float(raw_data.get('sgst', 0) or 0),
-        "igst": float(raw_data.get('igst', 0) or 0),
-        "discount": float(raw_data.get('discount', 0) or 0),
-        "other_charges": float(raw_data.get('other_charges', 0) or 0),
-        "total_amount": round(total_amount, 2),
+        "subtotal": _get_float_or_zero(raw_data.get('subtotal')),
+        "taxable_amount": _get_float_or_zero(raw_data.get('taxable_amount')),
+        "cgst": _get_float_or_zero(raw_data.get('cgst')),
+        "sgst": _get_float_or_zero(raw_data.get('sgst')),
+        "igst": _get_float_or_zero(raw_data.get('igst')),
+        "discount": _get_float_or_zero(raw_data.get('discount')),
+        "other_charges": _get_float_or_zero(raw_data.get('other_charges')),
+        "total_amount": round(total_amount, 2) if total_amount is not None else None,
         "items": normalized_items
     }
+    
+    validate_extracted_bill(normalized_doc)
+    return normalized_doc
 
 def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
     """
     Calls Google Gemini Multimodal REST API with image payload and strict structured JSON schema.
     Returns structured invoice header + item list. NEVER invents or uses fallback dummy data.
+    Logs granular performance timings at each step.
     """
+    t_start = time.perf_counter()
+    print(f"[Bill] request received (size: {len(image_bytes)} bytes, mime: '{mime_type}')", file=sys.stdout)
+    
     api_key = (GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", "") or "").strip().strip('\"\'')
     
     if not api_key:
@@ -533,18 +698,22 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
     
     system_instruction = (
         "You are EXPIREDNOT's high-precision pharmacy purchase bill intelligence engine. "
-        "Extract ONLY what is visibly printed on the invoice document. NEVER invent, hallucinate, or substitute medicine names. "
-        "Preserve exact printed product characters (e.g. if printed 'ABC-650 TAB', output 'ABC-650 TAB', do not change to Paracetamol). "
-        "Extract SELLER (name, address, gstin, phone, dl_number), BUYER (pharmacy name, address, gstin, phone), "
-        "INVOICE (invoice_no, invoice_date, purchase_date, due_date, payment_terms), TOTALS (subtotal, taxable_amount, cgst, sgst, igst, discount, other_charges, total_amount), "
-        "and all line items (name, generic_name, brand, manufacturer, strength, dosage_form, pack, batch_no, mfg_date, expiry_date [format YYYY-MM], quantity, free_qty, purchase_rate, mrp, discount, tax_pct, line_total, conf ['high', 'medium', or 'needs_verification'], needs_verification [true/false]). "
-        "If a field is missing or partially unreadable, set value to null and needs_verification to true. "
+        "The uploaded bill is the SINGLE SOURCE OF TRUTH. "
+        "Extract ONLY what is visibly printed on the invoice document. "
+        "CRITICAL SOURCE-OF-TRUTH RULES: "
+        "1. NEVER invent, hallucinate, autocorrect, expand, or substitute medicine names, strengths, dosages, or batches using external medical knowledge. "
+        "2. Preserve exact printed product characters, capitalization, spelling, abbreviations, and punctuation (e.g. if printed 'ABC-650 TAB', output 'ABC-650 TAB', do NOT change to 'Paracetamol'). "
+        "3. If a field is missing, unclear, smudged, or not present on the bill, set its value to null. NEVER use fake or estimated defaults. "
+        "4. For every line item, extract: name, generic_name (null if not printed), brand (null if not printed), manufacturer (null if not printed), strength, dosage_form, pack, batch_no, mfg_date, expiry_date [format YYYY-MM if readable], quantity, free_qty (bonus/scheme qty, null if not present), purchase_rate, unit_price, mrp (null if not printed), discount, tax_pct, line_total, conf ('high', 'medium', or 'needs_verification'), needs_verification (true/false). "
+        "5. Extract SELLER (distributor/name, seller_address, seller_phone, seller_gstin, seller_dl), BUYER (buyer_name, buyer_address, buyer_phone, buyer_gstin), INVOICE (invoice_no, invoice_date, purchase_date, due_date, payment_terms), and TOTALS (subtotal, taxable_amount, cgst, sgst, igst, discount, other_charges, total_amount). "
+        "6. Distinct physical medicine or batch rows must remain separate line items. Do not merge separate batches. "
         "Output strictly valid JSON with keys: distributor, seller_address, seller_phone, seller_gstin, seller_dl, buyer_name, buyer_address, buyer_phone, buyer_gstin, invoice_no, invoice_date, purchase_date, due_date, payment_terms, subtotal, taxable_amount, cgst, sgst, igst, discount, other_charges, total_amount, items."
     )
     
     last_error_detail = "All models failed"
     
     try:
+        t_prep_0 = time.perf_counter()
         import base64
         import ssl
         b64_data = base64.b64encode(image_bytes).decode('utf-8')
@@ -555,6 +724,9 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
             ssl_ctx = ssl.create_default_context(cafile=certifi.where())
         except Exception:
             ssl_ctx = ssl.create_default_context()
+            
+        t_prep_1 = time.perf_counter()
+        print(f"[Bill] image preparation completed (time: {t_prep_1 - t_prep_0:.4f}s)", file=sys.stdout)
         
         gemini_models = [
             'gemini-3.8-flash',
@@ -581,13 +753,17 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
             ],
             "generationConfig": {
                 "response_mime_type": "application/json",
-                "temperature": 0.1
+                "temperature": 0.1,
+                "thinkingConfig": {
+                    "thinkingLevel": "low"
+                }
             }
         }
         
         for model in gemini_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            print(f"[GEMINI BILL AI] Requesting inference via model '{model}' (mime: {mime_type}, payload: {len(image_bytes)} bytes)...")
+            print(f"[Gemini] request started (model: '{model}', mime: '{mime_type}', payload: {len(image_bytes)} bytes)", file=sys.stdout)
+            t_req_0 = time.perf_counter()
             try:
                 req = urllib.request.Request(
                     url,
@@ -598,7 +774,11 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
                     }
                 )
                 with urllib.request.urlopen(req, context=ssl_ctx, timeout=60) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
+                    raw_resp = resp.read().decode('utf-8')
+                    t_req_1 = time.perf_counter()
+                    print(f"[Gemini] response received (model: '{model}', status: {resp.status}, latency: {t_req_1 - t_req_0:.2f}s)", file=sys.stdout)
+                    
+                    data = json.loads(raw_resp)
                     candidates = data.get('candidates', [])
                     if candidates:
                         parts = candidates[0].get('content', {}).get('parts', [])
@@ -617,11 +797,21 @@ def call_gemini_multimodal_bill_parser(image_bytes, mime_type="image/jpeg"):
                                 lines = lines[:-1]
                             cleaned_text = '\n'.join(lines).strip()
                         
+                        t_json_0 = time.perf_counter()
                         try:
                             raw_json = json.loads(cleaned_text)
+                            t_json_1 = time.perf_counter()
+                            print(f"[Gemini] JSON parsed (time: {t_json_1 - t_json_0:.4f}s)", file=sys.stdout)
+                            
+                            t_norm_0 = time.perf_counter()
                             normalized = normalize_extracted_bill(raw_json)
+                            t_norm_1 = time.perf_counter()
+                            
                             if normalized:
-                                print(f"[GEMINI BILL AI SUCCESS] Successfully extracted {len(normalized['items'])} items via '{model}'")
+                                val_summary = normalized.get('validation_summary', {})
+                                print(f"[Bill] validation completed (issues: {len(val_summary.get('header_issues', [])) + val_summary.get('items_flagged', 0)}, time: {t_norm_1 - t_norm_0:.4f}s)", file=sys.stdout)
+                                print(f"[Bill] normalization completed (items: {len(normalized['items'])}, time: {t_norm_1 - t_norm_0:.4f}s)", file=sys.stdout)
+                                print(f"[Bill] total processing time: {time.perf_counter() - t_start:.2f}s", file=sys.stdout)
                                 return normalized
                             else:
                                 print(f"[GEMINI BILL AI WARN] Model '{model}' returned empty items list: {cleaned_text[:200]}", file=sys.stderr)
@@ -1395,14 +1585,26 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             if not user:
                 return self._send_json({"error": "Unauthorized session."}, 401)
                 
-            distributor = req_data.get('distributor', 'General Supplier')
-            invoice_no = req_data.get('invoice_no', f"INV-{secrets.token_hex(3).upper()}")
-            invoice_date = req_data.get('invoice_date', time.strftime('%Y-%m-%d'))
+            distributor = (req_data.get('distributor') or 'Unspecified Supplier').strip()
+            invoice_no = (req_data.get('invoice_no') or 'UNSPECIFIED').strip()
+            invoice_date = req_data.get('invoice_date') or time.strftime('%Y-%m-%d')
             items = req_data.get('items', [])
             original_file_url = req_data.get('original_file_url', '')
             
             if not items:
                 return self._send_json({"error": "Cannot confirm bill with zero line items."}, 400)
+                
+            # Validate every line item has medicine name, batch number, and expiry date
+            for idx, it in enumerate(items):
+                i_name = (it.get('name') or '').strip()
+                i_batch = (it.get('batch_no') or it.get('batchNo') or '').strip()
+                i_exp = (it.get('expiry_date') or it.get('expiryDate') or '').strip()
+                if not i_name:
+                    return self._send_json({"error": f"Item #{idx+1} is missing a medicine name."}, 400)
+                if not i_batch:
+                    return self._send_json({"error": f"Item '{i_name}' is missing a batch number."}, 400)
+                if not i_exp:
+                    return self._send_json({"error": f"Item '{i_name}' is missing an expiry date."}, 400)
                 
             bill_id = req_data.get('bill_id') or f"BILL_{int(time.time())}_{secrets.token_hex(4)}"
             now = int(time.time())
@@ -1421,12 +1623,13 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     name = item.get('name', '').strip()
                     if not name:
                         continue
-                    pack = item.get('pack', 'Standard')
-                    batch_no = item.get('batch_no', f"BAT-{secrets.token_hex(3).upper()}").strip().upper()
-                    expiry_date = item.get('expiry_date', '').strip()
+                    pack = item.get('pack') or 'Standard'
+                    batch_no = (item.get('batch_no') or item.get('batchNo') or '').strip().upper()
+                    expiry_date = (item.get('expiry_date') or item.get('expiryDate') or '').strip()
                     qty = float(item.get('quantity', 1))
                     rate = float(item.get('purchase_rate', 0))
-                    mrp = float(item.get('mrp', rate * 1.3))
+                    raw_mrp = item.get('mrp')
+                    mrp = float(raw_mrp) if raw_mrp is not None and str(raw_mrp).strip().lower() not in ('null', 'none', '') else rate
                     rack = item.get('rack', f"Rack {chr(65 + idx % 4)}-1")
                     
                     cursor.execute('''

@@ -2210,13 +2210,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadSideBySideReview = (invoiceObj, file = null) => {
     currentCapturedBill = JSON.parse(JSON.stringify(invoiceObj));
 
-    if (ocrDistributorDisplay) ocrDistributorDisplay.textContent = currentCapturedBill.distributor || 'Distributor Invoice';
-    if (ocrInvoiceNoDisplay) ocrInvoiceNoDisplay.textContent = currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'INV-101';
-    if (ocrDateDisplay) ocrDateDisplay.textContent = currentCapturedBill.invoice_date || currentCapturedBill.date || new Date().toISOString().split('T')[0];
-    if (ocrItemsCountDisplay) ocrItemsCountDisplay.textContent = currentCapturedBill.items.length;
+    if (ocrDistributorDisplay) ocrDistributorDisplay.textContent = currentCapturedBill.distributor || '—';
+    if (ocrInvoiceNoDisplay) ocrInvoiceNoDisplay.textContent = currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || '—';
+    if (ocrDateDisplay) ocrDateDisplay.textContent = currentCapturedBill.invoice_date || currentCapturedBill.date || '—';
+    if (ocrItemsCountDisplay) ocrItemsCountDisplay.textContent = currentCapturedBill.items ? currentCapturedBill.items.length : 0;
 
-    if (simBillLogo) simBillLogo.textContent = (currentCapturedBill.distributor || 'DISTRIBUTOR INVOICE').toUpperCase();
-    if (simBillMeta) simBillMeta.textContent = `TAX INVOICE #${currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'INV-101'}`;
+    if (simBillLogo) simBillLogo.textContent = (currentCapturedBill.distributor || 'PURCHASE INVOICE').toUpperCase();
+    if (simBillMeta) simBillMeta.textContent = currentCapturedBill.invoice_no ? `TAX INVOICE #${currentCapturedBill.invoice_no}` : 'TAX INVOICE';
 
     if (file && originalBillPreviewImg) {
       if (file.type === 'application/pdf') {
@@ -2241,10 +2241,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (simBillTable && file && file.type !== 'application/pdf') {
-      simBillTable.innerHTML = currentCapturedBill.items.map(item => `
+      simBillTable.innerHTML = (currentCapturedBill.items || []).map(item => `
         <div class="sim-line">
-          <span>${item.name} (${item.batch_no || item.batchNo})</span>
-          <span>${item.quantity} × ₹${item.purchase_rate || item.purchaseRate}</span>
+          <span>${item.name || 'Medicine'} (${item.batch_no || item.batchNo || '—'})</span>
+          <span>${item.quantity || 0} × ₹${item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : '—'}</span>
         </div>
       `).join('');
     }
@@ -2260,26 +2260,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderOcrTable = () => {
     if (!ocrTableBody || !currentCapturedBill) return;
 
-    ocrTableBody.innerHTML = currentCapturedBill.items.map((item, idx) => {
-      const pRate = item.purchase_rate !== undefined ? item.purchase_rate : item.purchaseRate;
-      const bNo = item.batch_no !== undefined ? item.batch_no : item.batchNo;
-      const expDate = item.expiry_date !== undefined ? item.expiry_date : item.expiryDate;
-      const rowTotal = (item.quantity || 0) * (pRate || 0);
-      const confBadge = item.conf === 'high' 
+    ocrTableBody.innerHTML = (currentCapturedBill.items || []).map((item, idx) => {
+      const pRate = (item.purchase_rate !== undefined && item.purchase_rate !== null) ? item.purchase_rate : (item.purchaseRate !== undefined ? item.purchaseRate : '');
+      const bNo = (item.batch_no !== undefined && item.batch_no !== null) ? item.batch_no : (item.batchNo || '');
+      const expDate = (item.expiry_date !== undefined && item.expiry_date !== null) ? item.expiry_date : (item.expiryDate || '');
+      const mrpVal = (item.mrp !== undefined && item.mrp !== null) ? item.mrp : '';
+      const qtyVal = (item.quantity !== undefined && item.quantity !== null) ? item.quantity : '';
+      const rowTotal = (parseFloat(qtyVal) || 0) * (parseFloat(pRate) || 0);
+      
+      const isHighConf = item.conf === 'high' && !item.needs_verification;
+      const noteTooltip = (item.validation_notes && item.validation_notes.length > 0) ? item.validation_notes.join(', ') : 'Requires pharmacist review';
+      const confBadge = isHighConf
         ? `<span class="conf-badge conf-high">✓ Confident</span>`
-        : `<span class="conf-badge conf-unverified">⚠ Needs Verification</span>`;
+        : `<span class="conf-badge conf-unverified" title="${noteTooltip}">⚠ Verify</span>`;
 
       return `
         <tr data-index="${idx}">
           <td>${confBadge}</td>
           <td><input type="text" value="${item.name || ''}" class="form-input ocr-in-name" style="height:32px; padding:0 0.5rem;" placeholder="Exact Medicine Name" required></td>
-          <td><input type="text" value="${item.pack || ''}" class="form-input ocr-in-pack" style="height:32px; padding:0 0.5rem; width:65px;"></td>
-          <td><input type="text" value="${bNo || ''}" class="form-input ocr-in-batch mono-input" style="height:32px; padding:0 0.5rem; width:100px;" placeholder="BATCH" required></td>
-          <td><input type="text" value="${expDate || ''}" class="form-input ocr-in-exp mono-input" style="height:32px; padding:0 0.5rem; width:90px;" placeholder="YYYY-MM" required></td>
-          <td><input type="number" value="${item.quantity || 1}" min="1" class="form-input ocr-in-qty" style="height:32px; padding:0 0.5rem; width:70px;" required></td>
-          <td><input type="number" value="${pRate || 0}" min="0" step="0.01" class="form-input ocr-in-rate" style="height:32px; padding:0 0.5rem; width:80px;" required></td>
-          <td><input type="number" value="${item.mrp || ''}" min="0" step="0.01" class="form-input ocr-in-mrp" style="height:32px; padding:0 0.5rem; width:80px;"></td>
-          <td><strong style="font-family:var(--font-mono);">₹${rowTotal.toLocaleString('en-IN')}</strong></td>
+          <td><input type="text" value="${item.pack || ''}" class="form-input ocr-in-pack" style="height:32px; padding:0 0.5rem; width:65px;" placeholder="Pack"></td>
+          <td><input type="text" value="${bNo}" class="form-input ocr-in-batch mono-input" style="height:32px; padding:0 0.5rem; width:100px;" placeholder="BATCH" required></td>
+          <td><input type="text" value="${expDate}" class="form-input ocr-in-exp mono-input" style="height:32px; padding:0 0.5rem; width:90px;" placeholder="YYYY-MM" required></td>
+          <td><input type="number" value="${qtyVal}" min="1" class="form-input ocr-in-qty" style="height:32px; padding:0 0.5rem; width:70px;" placeholder="Qty" required></td>
+          <td><input type="number" value="${pRate}" min="0" step="0.01" class="form-input ocr-in-rate" style="height:32px; padding:0 0.5rem; width:80px;" placeholder="Rate" required></td>
+          <td><input type="number" value="${mrpVal}" min="0" step="0.01" class="form-input ocr-in-mrp" style="height:32px; padding:0 0.5rem; width:80px;" placeholder="MRP"></td>
+          <td><strong style="font-family:var(--font-mono);">₹${rowTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
           <td>
             <button type="button" class="btn-secondary" style="height:26px; padding:0 0.4rem; color:var(--status-critical);" onclick="window.removeCapturedLine(${idx})">×</button>
           </td>
@@ -2298,14 +2303,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const inMrp = tr.querySelector('.ocr-in-mrp');
 
       const sync = () => {
-        if (currentCapturedBill.items[idx]) {
+        if (currentCapturedBill.items && currentCapturedBill.items[idx]) {
           currentCapturedBill.items[idx].name = inName.value;
-          currentCapturedBill.items[idx].pack = inPack.value;
+          currentCapturedBill.items[idx].pack = inPack.value || null;
           currentCapturedBill.items[idx].batch_no = inBatch.value;
           currentCapturedBill.items[idx].expiry_date = inExp.value;
-          currentCapturedBill.items[idx].quantity = parseFloat(inQty.value) || 0;
-          currentCapturedBill.items[idx].purchase_rate = parseFloat(inRate.value) || 0;
-          currentCapturedBill.items[idx].mrp = parseFloat(inMrp.value) || 0;
+          currentCapturedBill.items[idx].quantity = inQty.value ? parseFloat(inQty.value) : null;
+          currentCapturedBill.items[idx].purchase_rate = inRate.value ? parseFloat(inRate.value) : null;
+          currentCapturedBill.items[idx].mrp = inMrp.value ? parseFloat(inMrp.value) : null;
         }
       };
 
@@ -2316,7 +2321,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   window.removeCapturedLine = (idx) => {
-    if (!currentCapturedBill) return;
+    if (!currentCapturedBill || !currentCapturedBill.items) return;
     currentCapturedBill.items.splice(idx, 1);
     if (ocrItemsCountDisplay) ocrItemsCountDisplay.textContent = currentCapturedBill.items.length;
     renderOcrTable();
@@ -2325,15 +2330,17 @@ document.addEventListener('DOMContentLoaded', () => {
   if (ocrAddRowBtn) {
     ocrAddRowBtn.addEventListener('click', () => {
       if (!currentCapturedBill) return;
+      if (!currentCapturedBill.items) currentCapturedBill.items = [];
       currentCapturedBill.items.push({
         name: '',
-        pack: '10s',
+        pack: null,
         batch_no: '',
         expiry_date: '',
-        quantity: 10,
-        purchase_rate: 100,
-        mrp: 140,
-        conf: 'unverified'
+        quantity: null,
+        purchase_rate: null,
+        mrp: null,
+        conf: 'needs_verification',
+        needs_verification: true
       });
       if (ocrItemsCountDisplay) ocrItemsCountDisplay.textContent = currentCapturedBill.items.length;
       renderOcrTable();
@@ -2344,11 +2351,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const launchManualBillCapture = () => {
     if (billExtractionAlert) billExtractionAlert.hidden = true;
     loadSideBySideReview({
-      distributor: 'Wholesale Supplier',
-      invoice_no: 'INV-' + Math.floor(1000 + Math.random() * 9000),
+      distributor: '',
+      invoice_no: '',
       invoice_date: new Date().toISOString().split('T')[0],
       items: [
-        { name: '', pack: '10s', batch_no: '', expiry_date: '', quantity: 10, purchase_rate: 0, mrp: 0, conf: 'unverified' }
+        { name: '', pack: null, batch_no: '', expiry_date: '', quantity: null, purchase_rate: null, mrp: null, conf: 'needs_verification', needs_verification: true }
       ]
     });
   };
@@ -2393,18 +2400,38 @@ document.addEventListener('DOMContentLoaded', () => {
   // Confirm Bill -> Save to Real DB (Human Review Gate)
   if (ocrConfirmSaveBtn) {
     ocrConfirmSaveBtn.addEventListener('click', async () => {
-      if (!currentCapturedBill || currentCapturedBill.items.length === 0) {
+      if (!currentCapturedBill || !currentCapturedBill.items || currentCapturedBill.items.length === 0) {
         alert('Please maintain at least one valid line item.');
         return;
       }
 
       // Check required fields
-      for (const item of currentCapturedBill.items) {
-        const name = item.name || '';
-        const bNo = item.batch_no || item.batchNo || '';
-        const exp = item.expiry_date || item.expiryDate || '';
-        if (!name.trim() || !bNo.trim() || !exp.trim()) {
-          alert('Please enter medicine name, batch number, and expiry date for all items.');
+      for (let i = 0; i < currentCapturedBill.items.length; i++) {
+        const item = currentCapturedBill.items[i];
+        const name = (item.name || '').trim();
+        const bNo = (item.batch_no || item.batchNo || '').trim();
+        const exp = (item.expiry_date || item.expiryDate || '').trim();
+        const qty = parseFloat(item.quantity);
+        const rate = parseFloat(item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : item.purchaseRate);
+        
+        if (!name) {
+          alert(`Item #${i + 1}: Please enter the exact medicine name.`);
+          return;
+        }
+        if (!bNo) {
+          alert(`Item #${i + 1} (${name}): Please enter the batch number.`);
+          return;
+        }
+        if (!exp) {
+          alert(`Item #${i + 1} (${name}): Please enter the expiry date (YYYY-MM).`);
+          return;
+        }
+        if (isNaN(qty) || qty <= 0) {
+          alert(`Item #${i + 1} (${name}): Please enter a valid quantity.`);
+          return;
+        }
+        if (isNaN(rate) || rate < 0) {
+          alert(`Item #${i + 1} (${name}): Please enter a valid purchase rate.`);
           return;
         }
       }
@@ -2414,20 +2441,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const payload = {
         bill_id: currentCapturedBill.bill_id,
-        distributor: currentCapturedBill.distributor || 'General Stockist',
-        invoice_no: currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'INV-101',
+        distributor: currentCapturedBill.distributor || 'Unspecified Supplier',
+        invoice_no: currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'UNSPECIFIED',
         invoice_date: currentCapturedBill.invoice_date || currentCapturedBill.date || new Date().toISOString().split('T')[0],
         original_file_url: currentCapturedBill.original_file_url || '',
-        items: currentCapturedBill.items.map(item => ({
-          name: item.name.trim(),
-          generic_name: item.generic_name || null,
-          pack: item.pack || 'Standard',
-          batch_no: (item.batch_no || item.batchNo).trim().toUpperCase(),
-          expiry_date: (item.expiry_date || item.expiryDate).trim(),
-          quantity: parseFloat(item.quantity) || 1,
-          purchase_rate: parseFloat(item.purchase_rate !== undefined ? item.purchase_rate : item.purchaseRate) || 0,
-          mrp: parseFloat(item.mrp) || 0
-        }))
+        items: currentCapturedBill.items.map(item => {
+          const pRate = parseFloat(item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : item.purchaseRate) || 0;
+          const rawMrp = item.mrp !== undefined && item.mrp !== null ? parseFloat(item.mrp) : null;
+          return {
+            name: item.name.trim(),
+            generic_name: item.generic_name || null,
+            pack: item.pack || 'Standard',
+            batch_no: (item.batch_no || item.batchNo || '').trim().toUpperCase(),
+            expiry_date: (item.expiry_date || item.expiryDate || '').trim(),
+            quantity: parseFloat(item.quantity) || 1,
+            purchase_rate: pRate,
+            mrp: rawMrp !== null && !isNaN(rawMrp) ? rawMrp : pRate
+          };
+        })
       };
 
       try {
@@ -2455,7 +2486,7 @@ document.addEventListener('DOMContentLoaded', () => {
             expiryDate: item.expiry_date,
             quantity: item.quantity,
             purchaseRate: item.purchase_rate,
-            mrp: item.mrp || (item.purchase_rate * 1.3),
+            mrp: item.mrp !== undefined && item.mrp !== null ? item.mrp : item.purchase_rate,
             rack: 'Rack A-1',
             distributor: payload.distributor,
             createdAt: new Date().toISOString()
