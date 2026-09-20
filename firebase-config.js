@@ -18,8 +18,10 @@ if (typeof firebase !== 'undefined') {
   window.googleAuthProvider = new firebase.auth.GoogleAuthProvider();
   window.googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
   
-  // DATABASE: Initialize Cloud Firestore
+  // Safe guard (only starts if firestore is present)
+if (typeof firebase.firestore === 'function') {
   window.db = firebase.firestore();
+}
 
   console.log('Firebase Auth & Firestore Database initialized successfully.');
 } else {

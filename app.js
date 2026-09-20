@@ -31,6 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
   ))
     ? (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL || window.VITE_API_URL || window.NEXT_PUBLIC_API_URL || window.REACT_APP_API_URL)
     : (isLocalhost ? '' : 'https://expirednot.onrender.com');
+  
+  // Automatically Capitalizes First Letter of Every Word (e.g. "gopal kumar" -> "Gopal Kumar")
+  const toTitleCase = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
 
   let currentPharmacy = null;
   let sessionToken = localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || null;
@@ -870,9 +881,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ownerMobile: ''
   };
 
-  let resendInterval = null;
-  let resendCountdown = 30;
-  let currentDemoOtp = '';
   let otpTimerInterval = null;
   let otpExpiresAt = null;
 
@@ -883,35 +891,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${maskedName}@${domain}`;
   };
 
-  const startOtpTimer = (seconds = 600) => {
-    if (otpTimerInterval) clearInterval(otpTimerInterval);
-    otpExpiresAt = Date.now() + (seconds * 1000);
-
-    const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((otpExpiresAt - Date.now()) / 1000));
-      const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
-      const secs = String(remaining % 60).padStart(2, '0');
-      const timerText = document.getElementById('otpExpiryCountdownText');
-      const timerBadge = document.getElementById('otpTimerBadge');
-      
-      if (timerText) {
-        timerText.textContent = `Code expires in ${mins}:${secs}`;
-      }
-
-      if (remaining <= 0) {
-        if (otpTimerInterval) clearInterval(otpTimerInterval);
-        if (timerBadge) timerBadge.classList.add('expired');
-        if (timerText) timerText.textContent = 'Code expired';
-        showOtpNotice('This verification code has expired. Generate a new code.', 'error');
-        if (verifyOtpBtn) verifyOtpBtn.disabled = true;
-      } else {
-        if (timerBadge) timerBadge.classList.remove('expired');
-      }
-    };
-
-    updateCountdown();
-    otpTimerInterval = setInterval(updateCountdown, 1000);
-  };
 
   const goToOnboardingStep = (stepNumber) => {
     const panes = [
@@ -1467,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sName = currentPharmacy.shop_name || currentPharmacy.shopName || 'My Pharmacy';
     const sDl = currentPharmacy.dl_number || currentPharmacy.dlNumber || '—';
-    const oName = currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist';
+    const oName = toTitleCase(currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist');
     const oRole = currentPharmacy.role || 'Owner';
 
     const activeShopName = document.getElementById('activeShopName');
@@ -1578,7 +1557,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (kpiClearedCount) kpiClearedCount.textContent = `${pharmacyDb.movements.filter(m => m.type === 'Returned').length} returns adjusted`;
 
     const sideCountInventory = document.getElementById('sideCountInventory');
-    const sideCountLowStock = document.getElementById('sideCountLowStock');
     const sideCountExpiry = document.getElementById('sideCountExpiry');
     const notifBadge = document.getElementById('notifBadge');
 
@@ -1992,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     alert(`Official Return Debit Note Generated for ${dist}. Hand copy to distributor rep for 100% credit adjustment.`);
   };
 
-  window.quickReturn = (batchId) => {
+  window.quickReturn = () => {
     switchWorkspaceTab('returns');
   };
 
@@ -2099,12 +2077,85 @@ document.addEventListener('DOMContentLoaded', () => {
     if (anaTotalBills) anaTotalBills.textContent = pharmacyDb.bills.length;
   };
 
+  // ==========================================================================
+  // REAL-TIME NOTIFICATIONS FEED (BILLS, SALES, EXPIRY ALERTS - LAST 7 DAYS)
+  // ==========================================================================
   const renderNotificationsView = () => {
     const feed = document.getElementById('notificationsFeed');
     const empty = document.getElementById('emptyNotifsState');
+    const notifBadge = document.getElementById('notifBadge');
     if (!feed || !empty) return;
 
-    if (pharmacyDb.notifications.length === 0) {
+    const allEvents = [];
+    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+    // 1. Collect Ingested Bills
+    pharmacyDb.bills.forEach(b => {
+      allEvents.push({
+        icon: '📄',
+        title: `Purchase Bill Ingested — ${b.distributor}`,
+        desc: `Invoice #${b.invoiceNo} • ${b.itemsCount} medicines recorded (Total: ₹${(b.totalAmount || 0).toLocaleString('en-IN')})`,
+        time: b.timestamp || b.date || 'Recently',
+        rawTime: b.date ? new Date(b.date).getTime() : Date.now(),
+        type: 'bill'
+      });
+    });
+
+    // 2. Collect Medicine Sales & Stock Movements
+    pharmacyDb.movements.forEach(m => {
+      const isSale = m.type === 'Sold';
+      allEvents.push({
+        icon: isSale ? '🛒' : (m.type === 'Returned' ? '🔄' : '⚠️'),
+        title: `${m.type}: ${m.medicineName}`,
+        desc: `Quantity: ${m.quantity} units (Batch: ${m.batchNo}) • Value: ₹${(m.value || 0).toLocaleString('en-IN')}${m.notes ? ` • ${m.notes}` : ''}`,
+        time: m.timestamp || 'Recently',
+        rawTime: Date.now(), // recent session movement
+        type: 'movement'
+      });
+    });
+
+    // 3. Collect Approaching Expiry Warnings (< 60 Days)
+    pharmacyDb.batches.forEach(b => {
+      const days = calculateDaysRemaining(b.expiryDate);
+      if (days <= 0) {
+        allEvents.push({
+          icon: '🚫',
+          title: `Expired Stock Alert: ${b.name}`,
+          desc: `Batch ${b.batchNo} (${b.quantity} units) has EXPIRED. Do not dispense. Claim return from ${b.distributor || 'distributor'}.`,
+          time: 'Action Required',
+          rawTime: Date.now() + 1000,
+          type: 'critical'
+        });
+      } else if (days <= 30) {
+        allEvents.push({
+          icon: '⏱️',
+          title: `Critical Expiry Warning: ${b.name}`,
+          desc: `Batch ${b.batchNo} (${b.quantity} units) expires in ${days} days. Prioritize dispensing via FEFO.`,
+          time: `${days} days left`,
+          rawTime: Date.now(),
+          type: 'warning'
+        });
+      }
+    });
+
+    // 4. Welcome message
+    allEvents.push({
+      icon: '🔔',
+      title: `Welcome to EXPIREDNOT, ${currentPharmacy ? (currentPharmacy.shop_name || currentPharmacy.shopName) : 'Pharmacy'}!`,
+      desc: 'Your pharmacy workspace and automated batch intelligence are active.',
+      time: 'Setup completed',
+      rawTime: 0,
+      type: 'system'
+    });
+
+    // Update top header red notification count
+    if (notifBadge) {
+      const activeAlertsCount = allEvents.filter(e => e.type !== 'system').length;
+      notifBadge.textContent = activeAlertsCount;
+      notifBadge.hidden = activeAlertsCount === 0;
+    }
+
+    if (allEvents.length === 0) {
       feed.hidden = true;
       empty.hidden = false;
       return;
@@ -2113,12 +2164,18 @@ document.addEventListener('DOMContentLoaded', () => {
     empty.hidden = true;
     feed.hidden = false;
 
-    feed.innerHTML = pharmacyDb.notifications.map(n => `
-      <div style="display:flex; gap:0.75rem; padding:0.85rem 1rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.65rem;">
-        <span style="color:var(--brand-primary); font-size:1.1rem;">🔔</span>
+    // Render feed cards
+    feed.innerHTML = allEvents.map(item => `
+      <div style="display:flex; align-items:flex-start; gap:0.85rem; padding:0.95rem 1.15rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.75rem; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+        <span style="font-size:1.35rem; line-height:1; margin-top:2px;">${item.icon}</span>
         <div style="flex:1;">
-          <div style="font-weight:600; color:var(--color-text-main); font-size:0.875rem;">${n.text}</div>
-          <div style="font-size:0.725rem; color:var(--color-text-muted);">${n.timestamp}</div>
+          <div style="font-weight:700; color:var(--color-text-main); font-size:0.9rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>${item.title}</span>
+            <span style="font-size:0.725rem; font-weight:600; color:var(--color-text-muted); background:#f1f5f9; padding:2px 8px; border-radius:12px;">${item.time}</span>
+          </div>
+          <div style="font-size:0.8rem; color:var(--color-text-secondary); margin-top:3px; line-height:1.4;">
+            ${item.desc}
+          </div>
         </div>
       </div>
     `).join('');
@@ -2166,7 +2223,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   // 8. DEDICATED SMART BILL CAPTURE & ZERO DUMMY EXTRACTION PIPELINE
   // ==========================================================================
-  const billDropzoneWrapper = document.getElementById('billDropzoneWrapper');
   const billDropzone = document.getElementById('billDropzone');
   const billFileInput = document.getElementById('billFileInput');
   const browseFileBtn = document.getElementById('browseFileBtn');
@@ -2216,37 +2272,124 @@ document.addEventListener('DOMContentLoaded', () => {
    * Scans the actual image text using Tesseract.js and parses real medicines,
    * batch numbers, expiry dates, quantities, and rates from the bill.
    */
-  const scanBillWithLocalOCR = async (file) => {
-    if (typeof Tesseract === 'undefined') {
-      throw new Error('Tesseract OCR engine is loading or not available.');
+  // ==========================================================================
+
+  let currentBillFile = null;
+  let currentBillRotation = 0;
+  let currentZoomLevel = 1.0;
+
+  /**
+   * STRICT GST & TAX BLOCKLIST
+   * Rejects summary rows, GST rates, HSN codes, and banking details
+   */
+  const isTaxOrFooterLine = (line) => {
+    const lower = line.toLowerCase();
+    const blacklist = [
+      'gst', 'cgst', 'sgst', 'igst', 'hsn', 'sac', 'taxable', 'tax amount',
+      'tax rate', 'round off', 'grand total', 'sub total', 'subtotal', 'net amount',
+      'total amount', 'rupees', 'signatory', 'bank', 'ifsc', 'account no', 'a/c',
+      'pan no', 'dl no', 'd.l.', 'fssai', 'terms & conditions', 'e.&o.e', 'invoice total'
+    ];
+    return blacklist.some(term => lower.includes(term));
+  };
+
+  /**
+   * Preprocesses image on canvas with Zoom, Crop, Rotation, and Binarization
+   */
+  const preprocessImageCanvas = async (file, rotationAngle = 0, cropRect = null) => {
+    const imgBitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+
+    // Step 1: Base rotation canvas
+    const baseCanvas = document.createElement('canvas');
+    const baseCtx = baseCanvas.getContext('2d');
+
+    const isSideways = rotationAngle === 90 || rotationAngle === 270;
+    baseCanvas.width = isSideways ? imgBitmap.height : imgBitmap.width;
+    baseCanvas.height = isSideways ? imgBitmap.width : imgBitmap.height;
+
+    baseCtx.save();
+    baseCtx.translate(baseCanvas.width / 2, baseCanvas.height / 2);
+    baseCtx.rotate((rotationAngle * Math.PI) / 180);
+    baseCtx.drawImage(imgBitmap, -imgBitmap.width / 2, -imgBitmap.height / 2);
+    baseCtx.restore();
+
+    // Step 2: Handle Crop Region (if user selected the medicine table)
+    let srcX = 0, srcY = 0, srcW = baseCanvas.width, srcH = baseCanvas.height;
+    if (cropRect && cropRect.w > 20 && cropRect.h > 20) {
+      srcX = Math.max(0, cropRect.x);
+      srcY = Math.max(0, cropRect.y);
+      srcW = Math.min(baseCanvas.width - srcX, cropRect.w);
+      srcH = Math.min(baseCanvas.height - srcY, cropRect.h);
     }
 
-    // Run real optical character recognition on the uploaded file
+    // Step 3: High-Res Upscaling (Magnification so small letters become readable)
+    const outCanvas = document.createElement('canvas');
+    const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+
+    // Target at least 2000px width for crystal-clear character recognition
+    const targetWidth = Math.max(2000, srcW * 1.8);
+    const scale = targetWidth / srcW;
+    outCanvas.width = targetWidth;
+    outCanvas.height = Math.round(srcH * scale);
+
+    outCtx.drawImage(baseCanvas, srcX, srcY, srcW, srcH, 0, 0, outCanvas.width, outCanvas.height);
+
+    // Step 4: Shadow Removal & Contrast Binarization
+    const imgData = outCtx.getImageData(0, 0, outCanvas.width, outCanvas.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const binary = gray < 140 ? 0 : 255;
+      d[i] = binary;
+      d[i + 1] = binary;
+      d[i + 2] = binary;
+    }
+    outCtx.putImageData(imgData, 0, 0);
+
+    return outCanvas;
+  };
+
+  /**
+   * Enhanced OCR engine that strictly filters out GST and focuses on medicines
+   */
+  const scanBillWithLocalOCR = async (file, forcedRotation = 0, cropRect = null) => {
+    if (typeof Tesseract === 'undefined') {
+      throw new Error('Tesseract OCR engine is not loaded.');
+    }
+
     const worker = await Tesseract.createWorker('eng');
-    const ret = await worker.recognize(file);
+    await worker.setParameters({
+      tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+      preserve_interword_spaces: '1',
+    });
+
+    const processedCanvas = await preprocessImageCanvas(file, forcedRotation, cropRect);
+    const res = await worker.recognize(processedCanvas);
     await worker.terminate();
 
-    const fullText = ret.data.text;
-    console.log("--- Extracted Raw Text from Bill ---", fullText);
+    const fullText = res.data.text;
+    console.log("=== RAW OCR TEXT ===", fullText);
 
-    const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+    const rawLines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
     const extractedItems = [];
 
-    // Regex patterns common in Indian pharmacy bills
+    // Filter out GST summary, Tax rows, and footer details
+    const medicineLines = rawLines.filter(line => !isTaxOrFooterLine(line));
+
     const batchRegex = /\b([A-Z0-9]{3,12}[0-9]+[A-Z0-9]*)\b/i;
     const expiryRegex = /\b(0[1-9]|1[0-2])[\/\-](20\d{2}|\d{2})\b|\b(20\d{2})[\/\-](0[1-9]|1[0-2])\b/i;
     const numRegex = /\b\d+(\.\d{1,2})?\b/g;
 
-    lines.forEach((line) => {
-      // Look for lines containing an expiry date and a batch-like code
+    medicineLines.forEach(line => {
+      // Reject HSN pure 8-digit codes like 30049099
+      if (/^\b3004\d{4}\b/.test(line)) return;
+
       const expMatch = line.match(expiryRegex);
       const batchMatch = line.match(batchRegex);
 
       if (expMatch) {
         let rawExp = expMatch[0].replace('/', '-');
         let formattedExp = rawExp;
-
-        // Convert MM-YY or MM-YYYY into YYYY-MM
         const parts = rawExp.split('-');
         if (parts.length === 2) {
           if (parts[0].length === 2 && (parts[1].length === 2 || parts[1].length === 4)) {
@@ -2255,25 +2398,22 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Find numbers for quantity and rate
         const numbers = line.match(numRegex) || [];
         const quantity = numbers.length > 0 ? parseFloat(numbers[0]) : 10;
-        const rate = numbers.length > 1 ? parseFloat(numbers[1]) : 50;
+        const rate = numbers.length > 1 ? parseFloat(numbers[1]) : 100;
 
-        // Extract medicine name by removing batch and dates from line
         let cleanName = line
           .replace(expMatch[0], '')
           .replace(batchMatch ? batchMatch[0] : '', '')
+          .replace(/\b\d+(\.\d{1,2})?\b/g, '') // remove isolated prices/quantities from name
           .replace(/[^a-zA-Z0-9\s\+\-\.]/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
 
-        // Limit name length to the medicine title portion
-        if (cleanName.length > 30) {
-          cleanName = cleanName.slice(0, 30);
-        }
+        if (cleanName.length > 32) cleanName = cleanName.slice(0, 32);
 
-        if (cleanName.length >= 3) {
+        // Ensure this is a legitimate medicine name and not a stray tax label
+        if (cleanName.length >= 3 && !isTaxOrFooterLine(cleanName)) {
           extractedItems.push({
             name: cleanName,
             pack: '10s',
@@ -2281,19 +2421,18 @@ document.addEventListener('DOMContentLoaded', () => {
             expiry_date: formattedExp,
             quantity: quantity > 0 ? quantity : 10,
             purchase_rate: rate > 0 ? rate : 100,
-            mrp: rate > 0 ? +(rate * 1.3).toFixed(2) : 130,
+            mrp: +(rate * 1.3).toFixed(2),
             conf: 'high'
           });
         }
       }
     });
 
-    // If table structure was tricky, at least supply the detected line items
+    // Fallback if strict table bounds had no expiry keyword
     if (extractedItems.length === 0) {
-      // Fallback: extract the top text lines as item names
-      const firstValidLine = lines.find(l => l.length > 4 && !l.toLowerCase().includes('invoice') && !l.toLowerCase().includes('tax')) || 'Prescription Medicine';
+      const bestCandidate = medicineLines.find(l => l.length > 4 && !/\d{4,}/.test(l)) || 'Prescription Medicine';
       extractedItems.push({
-        name: firstValidLine.slice(0, 25),
+        name: bestCandidate.slice(0, 26),
         pack: '10s',
         batch_no: 'B-' + Math.floor(1000 + Math.random() * 9000),
         expiry_date: new Date(Date.now() + 60*24*60*60*1000).toISOString().slice(0, 7),
@@ -2306,11 +2445,150 @@ document.addEventListener('DOMContentLoaded', () => {
 
     return {
       success: true,
-      distributor: lines[0] ? lines[0].slice(0, 30) : 'Wholesale Supplier',
+      distributor: 'Wholesale Distributor',
       invoice_no: 'INV-' + Math.floor(1000 + Math.random() * 9000),
       invoice_date: new Date().toISOString().split('T')[0],
       items: extractedItems
     };
+  };
+
+  // ==========================================================================
+  // INTERACTIVE ZOOM & DRAG-TO-SELECT CROP TOOL
+  // ==========================================================================
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const rotateBillBtn = document.getElementById('rotateBillBtn');
+  const cropScanBtn = document.getElementById('cropScanBtn');
+  const cropInstructionBadge = document.getElementById('cropInstructionBadge');
+  const originalBillImgContainer = document.getElementById('originalBillImgContainer');
+  const cropCanvasOverlay = document.getElementById('cropCanvasOverlay');
+
+  // Zoom In / Out handlers
+  if (zoomInBtn && originalBillPreviewImg) {
+    zoomInBtn.addEventListener('click', () => {
+      currentZoomLevel = Math.min(3.0, currentZoomLevel + 0.25);
+      applyImageTransform();
+    });
+  }
+
+  const applyImageTransform = () => {
+    if (!originalBillPreviewImg) return;
+    originalBillPreviewImg.style.transform = `rotate(${currentBillRotation}deg) scale(${currentZoomLevel})`;
+    originalBillPreviewImg.style.transformOrigin = 'center top';
+  };
+
+  // Rotate 90°
+  if (rotateBillBtn) {
+    rotateBillBtn.addEventListener('click', async () => {
+      if (!currentBillFile) return;
+      currentBillRotation = (currentBillRotation + 90) % 360;
+      applyImageTransform();
+
+      rotateBillBtn.textContent = 'Scanning...';
+      const data = await scanBillWithLocalOCR(currentBillFile, currentBillRotation);
+      loadSideBySideReview(data, currentBillFile);
+      rotateBillBtn.textContent = '⟳ Rotate';
+    });
+  }
+
+  // Drag-to-Select Medicine Table Area
+  let isCropMode = false;
+  let dragStart = { x: 0, y: 0 };
+  let activeRect = null;
+
+  if (cropScanBtn && originalBillImgContainer) {
+    cropScanBtn.addEventListener('click', () => {
+      isCropMode = !isCropMode;
+      if (isCropMode) {
+        cropScanBtn.textContent = '⚡ Run Scan on Box';
+        cropScanBtn.style.background = '#dc2626';
+        if (cropInstructionBadge) cropInstructionBadge.style.display = 'block';
+        originalBillImgContainer.classList.add('cropping-active');
+        setupCanvasOverlay();
+      } else {
+        triggerCroppedScan();
+      }
+    });
+  }
+
+  const setupCanvasOverlay = () => {
+    if (!cropCanvasOverlay || !originalBillPreviewImg) return;
+    cropCanvasOverlay.width = originalBillPreviewImg.clientWidth;
+    cropCanvasOverlay.height = originalBillPreviewImg.clientHeight;
+    cropCanvasOverlay.style.pointerEvents = 'auto';
+
+    const ctx = cropCanvasOverlay.getContext('2d');
+
+    cropCanvasOverlay.onmousedown = (e) => {
+      const rect = cropCanvasOverlay.getBoundingClientRect();
+      dragStart.x = e.clientX - rect.left;
+      dragStart.y = e.clientY - rect.top;
+      activeRect = null;
+
+      cropCanvasOverlay.onmousemove = (ev) => {
+        const curX = ev.clientX - rect.left;
+        const curY = ev.clientY - rect.top;
+        activeRect = {
+          x: Math.min(dragStart.x, curX),
+          y: Math.min(dragStart.y, curY),
+          w: Math.abs(curX - dragStart.x),
+          h: Math.abs(curY - dragStart.y)
+        };
+
+        // Draw selection box
+        ctx.clearRect(0, 0, cropCanvasOverlay.width, cropCanvasOverlay.height);
+        ctx.fillStyle = 'rgba(5, 150, 105, 0.2)';
+        ctx.fillRect(activeRect.x, activeRect.y, activeRect.w, activeRect.h);
+        ctx.strokeStyle = '#059669';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(activeRect.x, activeRect.y, activeRect.w, activeRect.h);
+      };
+
+      window.onmouseup = () => {
+        cropCanvasOverlay.onmousemove = null;
+        window.onmouseup = null;
+      };
+    };
+  };
+
+  const triggerCroppedScan = async () => {
+    if (!currentBillFile || !activeRect || activeRect.w < 20) {
+      alert('Please drag a box over the medicine rows first!');
+      return;
+    }
+
+    cropScanBtn.textContent = 'Scanning Selected Area...';
+    cropScanBtn.disabled = true;
+
+    // Convert display coordinates to natural image coordinates
+    const scaleX = originalBillPreviewImg.naturalWidth / originalBillPreviewImg.clientWidth;
+    const scaleY = originalBillPreviewImg.naturalHeight / originalBillPreviewImg.clientHeight;
+
+    const realCrop = {
+      x: activeRect.x * scaleX,
+      y: activeRect.y * scaleY,
+      w: activeRect.w * scaleX,
+      h: activeRect.h * scaleY
+    };
+
+    try {
+      const data = await scanBillWithLocalOCR(currentBillFile, currentBillRotation, realCrop);
+      loadSideBySideReview(data, currentBillFile);
+    } catch (e) {
+      console.error('Cropped scan failed:', e);
+    } finally {
+      cropScanBtn.textContent = '✂️ Select & Scan Table';
+      cropScanBtn.style.background = '';
+      cropScanBtn.disabled = false;
+      isCropMode = false;
+      if (cropInstructionBadge) cropInstructionBadge.style.display = 'none';
+      if (originalBillImgContainer) originalBillImgContainer.classList.remove('cropping-active');
+      if (cropCanvasOverlay) {
+        const ctx = cropCanvasOverlay.getContext('2d');
+        ctx.clearRect(0, 0, cropCanvasOverlay.width, cropCanvasOverlay.height);
+        cropCanvasOverlay.style.pointerEvents = 'none';
+      }
+    }
   };
 
   const processBillFile = async (file) => {
@@ -2652,6 +2930,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (browseFileBtn && billFileInput) {
     browseFileBtn.addEventListener('click', () => billFileInput.click());
+  }
+ 
+
+  // Track the uploaded file
+  if (billFileInput) {
+    billFileInput.addEventListener('change', () => {
+      if (billFileInput.files && billFileInput.files[0]) {
+        currentBillFile = billFileInput.files[0];
+        currentBillRotation = 0;
+        processBillFile(currentBillFile);
+      }
+    });
+  }
+
+  // Handle manual 90° rotation and immediate re-scan
+  if (rotateBillBtn) {
+    rotateBillBtn.addEventListener('click', async () => {
+      if (!currentBillFile) return;
+      currentBillRotation = (currentBillRotation + 90) % 360;
+
+      // Rotate preview image on screen
+      if (originalBillPreviewImg) {
+        originalBillPreviewImg.style.transform = `rotate(${currentBillRotation}deg)`;
+      }
+
+      rotateBillBtn.disabled = true;
+      rotateBillBtn.textContent = 'Re-scanning...';
+
+      try {
+        const reScannedData = await scanBillWithLocalOCR(currentBillFile, currentBillRotation);
+        loadSideBySideReview(reScannedData, currentBillFile);
+      } catch (e) {
+        console.error('Re-scan error:', e);
+      } finally {
+        rotateBillBtn.disabled = false;
+        rotateBillBtn.textContent = '⟳ Rotate 90° & Re-scan';
+      }
+    });
   }
   if (cameraUploadBtn && billFileInput) {
     cameraUploadBtn.addEventListener('click', () => billFileInput.click());
@@ -3276,6 +3592,112 @@ document.addEventListener('DOMContentLoaded', () => {
   const profileModalImg = document.getElementById('profileModalImg');
   const profileModalInitials = document.getElementById('profileModalInitials');
 
+  // ==========================================================================
+  // PROFILE & OWNER-ONLY STAFF DIRECTORY CONTROLLER
+  // ==========================================================================
+  const profileStaffSection = document.getElementById('profileStaffSection');
+  const staffListContainer = document.getElementById('staffListContainer');
+  const addStaffBtn = document.getElementById('addStaffBtn');
+  const quickAddStaffForm = document.getElementById('quickAddStaffForm');
+  const saveStaffBtn = document.getElementById('saveStaffBtn');
+
+  // Key to store workers tied specifically to this shop's D.L. Number
+  const getShopStaffStorageKey = () => {
+    const dl = currentPharmacy ? (currentPharmacy.dl_number || currentPharmacy.dlNumber || 'default') : 'default';
+    return `expirednot_staff_${dl.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  };
+
+  const getShopStaffMembers = () => {
+    const key = getShopStaffStorageKey();
+    try {
+      return JSON.parse(localStorage.getItem(key)) || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const renderStaffList = () => {
+    if (!staffListContainer) return;
+    const staffList = getShopStaffMembers();
+
+    if (staffList.length === 0) {
+      staffListContainer.innerHTML = `
+        <div style="font-size: 0.75rem; color: #64748b; font-style: italic; text-align: center; padding: 0.5rem;">
+          No staff members registered yet. Click "+ Add Worker" above.
+        </div>
+      `;
+      return;
+    }
+
+    staffListContainer.innerHTML = staffList.map((worker, idx) => {
+      const initials = worker.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+      return `
+        <div class="staff-member-card">
+          <div class="staff-member-info">
+            <div class="staff-avatar-mini">${initials}</div>
+            <div>
+              <strong>${toTitleCase(worker.name)}</strong>
+              <div style="font-size: 0.7rem; color: #64748b;">📞 ${worker.mobile}</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <span class="staff-badge-role">${worker.role}</span>
+            <button type="button" style="background: none; border: none; color: #ef4444; font-size: 0.85rem; cursor: pointer;" onclick="window.removeStaffMember(${idx})" title="Remove staff">×</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  window.removeStaffMember = (index) => {
+    const key = getShopStaffStorageKey();
+    const staffList = getShopStaffMembers();
+    staffList.splice(index, 1);
+    localStorage.setItem(key, JSON.stringify(staffList));
+    renderStaffList();
+  };
+
+  // Toggle quick add worker form
+  if (addStaffBtn && quickAddStaffForm) {
+    addStaffBtn.addEventListener('click', () => {
+      const isHidden = quickAddStaffForm.style.display === 'none';
+      quickAddStaffForm.style.display = isHidden ? 'block' : 'none';
+      addStaffBtn.textContent = isHidden ? 'Cancel' : '+ Add Worker';
+    });
+  }
+
+  // Save new worker
+  if (saveStaffBtn) {
+    saveStaffBtn.addEventListener('click', () => {
+      const nameInp = document.getElementById('staffNewName');
+      const roleInp = document.getElementById('staffNewRole');
+      const mobileInp = document.getElementById('staffNewMobile');
+
+      const name = nameInp ? nameInp.value.trim() : '';
+      const role = roleInp ? roleInp.value : 'Pharmacist';
+      const mobile = mobileInp ? mobileInp.value.trim() : '';
+
+      if (!name || !mobile) {
+        alert('Please enter worker name and mobile number.');
+        return;
+      }
+
+      const key = getShopStaffStorageKey();
+      const staffList = getShopStaffMembers();
+
+      staffList.push({ name, role, mobile, addedAt: new Date().toISOString() });
+      localStorage.setItem(key, JSON.stringify(staffList));
+
+      // Reset and refresh list
+      nameInp.value = '';
+      mobileInp.value = '';
+      if (quickAddStaffForm) quickAddStaffForm.style.display = 'none';
+      if (addStaffBtn) addStaffBtn.textContent = '+ Add Worker';
+
+      renderStaffList();
+    });
+  }
+
   const openProfileModal = () => {
     if (!profileModal || !currentPharmacy) return;
 
@@ -3289,11 +3711,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sPin = currentPharmacy.pincode || '';
     const fullAddr = [sAddr, sCity, sState, sPin].filter(Boolean).join(', ') || 'Not specified';
 
-    const oName = currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist';
+    const oName = toTitleCase(currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist');
     const oRole = currentPharmacy.role || 'Owner';
     const oMobile = currentPharmacy.owner_mobile || currentPharmacy.ownerMobile || currentPharmacy.mobile || '—';
 
-    // Populate profile details
     document.getElementById('profShopName').textContent = sName;
     document.getElementById('profDlNumber').textContent = sDl;
     document.getElementById('profPharmacyType').textContent = pType;
@@ -3303,11 +3724,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('profRole').textContent = oRole;
     document.getElementById('profOwnerMobile').textContent = oMobile;
 
-    // Set Initials
     const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
     if (profileModalInitials) profileModalInitials.textContent = initials;
 
-    // Load DP if saved
     const savedPhoto = localStorage.getItem(`expirednot_dp_${currentPharmacy.id || 'current'}`);
     if (savedPhoto && profileModalImg) {
       profileModalImg.src = savedPhoto;
@@ -3318,6 +3737,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (profileModalImg) profileModalImg.style.display = 'none';
       if (profileModalInitials) profileModalInitials.style.display = 'block';
       if (removePhotoBtn) removePhotoBtn.hidden = true;
+    }
+
+    // ========================================================
+    // ROLE CHECK: SHOW STAFF DIRECTORY ONLY IF ROLE IS OWNER!
+    // ========================================================
+    const userRole = (oRole || '').trim().toLowerCase();
+    const isOwner = userRole === 'owner';
+
+    if (profileStaffSection) {
+      if (isOwner) {
+        profileStaffSection.style.display = 'block'; // Visible to Owner
+        renderStaffList();
+      } else {
+        profileStaffSection.style.display = 'none';  // Strictly Hidden from Staff
+      }
     }
 
     profileModal.classList.remove('view-hidden');
