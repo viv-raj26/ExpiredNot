@@ -1295,3 +1295,313 @@ body {
   .otp-inputs-grid { gap: 0.35rem; }
   .otp-digit-box { width: 34px; height: 44px; font-size: 1.1rem; }
 }
+/* --- Expiry & Low Stock Reminder Styles --- */
+
+.alert-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+/* Expiry urgency colors (FEFO) */
+.badge-expired {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
+}
+
+.badge-critical {
+  background-color: #ffedd5;
+  color: #9a3412;
+  border-left: 4px solid #f97316;
+}
+
+.badge-warning {
+  background-color: #fef9c3;
+  color: #854d0e;
+  border-left: 4px solid #eab308;
+}
+
+.badge-safe {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+/* Low Stock Alert */
+.badge-low-stock {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  font-weight: bold;
+}
+
+/* ==========================================================================
+   PROFILE AVATAR & DP MODAL STYLES
+   ========================================================================== */
+
+/* Make the topbar circle look clickable */
+.user-avatar-circle {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: cover;
+  background-position: center;
+}
+
+.user-avatar-circle:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 2px #059669;
+}
+
+/* Modal DP Container */
+.profile-modal-body {
+  padding: 1.25rem 1.5rem;
+}
+
+.profile-dp-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 0.65rem;
+}
+
+.profile-dp-wrapper {
+  position: relative;
+  cursor: pointer;
+}
+
+.profile-dp-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 3px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.profile-dp-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-camera-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.dp-actions-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Details Grid */
+.profile-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.profile-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.profile-detail-item.full-width {
+  grid-column: span 2;
+}
+
+.detail-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.detail-value {
+  font-size: 0.875rem;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+.detail-value.mono-text {
+  font-family: monospace;
+  letter-spacing: 0.5px;
+}
+
+/* Zoom & Crop Toolbar Styles */
+.zoom-toolbar .btn-zoom {
+  height: 26px;
+  font-size: 0.75rem;
+  padding: 0 0.45rem;
+  font-weight: 600;
+}
+
+#originalBillImgContainer.cropping-active {
+  cursor: crosshair !important;
+}
+
+#cropCanvasOverlay {
+  display: block;
+}
+
+/* ==========================================================================
+   PERFECTLY BALANCED PILLS (EXPIRY & FEFO PRIORITY - SAME SIZE & HEIGHT)
+   ========================================================================== */
+
+/* 1. Base style applied equally to BOTH pills */
+.risk-pill,
+.fefo-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.78rem !important;        /* Balanced, professional readable size */
+  font-weight: 700 !important;          /* Clean bold text */
+  padding: 4px 11px !important;         /* Equal padding on both sides */
+  min-height: 27px !important;          /* Guarantees identical height */
+  border-radius: 9999px !important;     /* Smooth uniform pill shape */
+  white-space: nowrap !important;       /* Prevents text from breaking into 2 lines */
+  letter-spacing: 0.2px !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  line-height: 1 !important;
+}
+
+/* 2. Left Column: Expiry Urgency Pills */
+.risk-pill.critical,
+.risk-pill.expired {
+  background-color: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1.5px solid #ef4444 !important;
+}
+
+.risk-pill.warning {
+  background-color: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1.5px solid #f59e0b !important;
+}
+
+.risk-pill.watchlist {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+  border: 1.5px solid #0ea5e9 !important;
+}
+
+.risk-pill.safe {
+  background-color: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1.5px solid #22c55e !important;
+}
+
+/* 3. Right Column: FEFO Priority Action Pills */
+.fefo-pill.critical {
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+  border: 1.2px solid #f87171 !important;
+}
+
+.fefo-pill.urgent {
+  background-color: #ffedd5 !important;
+  color: #9a3412 !important;
+  border: 1.2px solid #fb923c !important;
+}
+
+.fefo-pill.warning {
+  background-color: #fef9c3 !important;
+  color: #854d0e !important;
+  border: 1.2px solid #facc15 !important;
+}
+
+/* Default / Later Batches */
+.fefo-pill {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1.2px solid #cbd5e1 !important;
+}
+
+/* ==========================================================================
+   OWNER-ONLY STAFF DIRECTORY STYLES
+   ========================================================================== */
+.profile-staff-box {
+  background: #ffffff;
+  border: 1.5px solid #d1fae5;
+  border-radius: 8px;
+  padding: 0.85rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.staff-member-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.staff-member-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.staff-avatar-mini {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0d9488;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.staff-badge-role {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+/* Automatically Capitalize First Letter of Names */
+#profOwnerName,
+#greetingUserTitle,
+#activeShopName,
+.staff-member-info strong {
+  text-transform: capitalize !important;
+}

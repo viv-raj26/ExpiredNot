@@ -718,6 +718,7 @@
                       >
                     </div>
                   </div>
+
                 </div>
 
                 <div class="wizard-actions-row">
@@ -925,7 +926,7 @@
                 <polyline points="16 17 21 12 16 7"></polyline>
                 <line x1="21" y1="12" x2="9" y2="12"></line>
               </svg>
-              <span>Sign Out</span>
+              <span>Log Out</span>
             </button>
           </div>
 
@@ -980,7 +981,7 @@
 
           <button type="button" class="sidebar-nav-btn" data-tab="inventory">
             <span class="sidebar-icon">📦</span>
-            <span class="sidebar-label">Medicine Inventory</span>
+            <span class="sidebar-label">Stock Inventory</span>
             <span class="sidebar-count-pill" id="sideCountInventory" hidden>0</span>
           </button>
 
@@ -1342,24 +1343,37 @@
 
             <!-- Side-by-Side Grid (Left: Original Bill Preview | Right: Extracted Table) -->
             <div class="side-by-side-ocr-layout">
-              
-              <!-- Left: Document Preview -->
+              <!-- Left: Document Preview with Zoom & Medicine Table Selector -->
               <div class="doc-preview-pane">
-                <div class="doc-preview-header">
-                  <span>Original Document Record</span>
-                  <span class="doc-preview-status" id="docPreviewStatusLabel">Secure Link</span>
+                <div class="doc-preview-header" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                  <div>
+                    <span>Original Document Record</span>
+                    <span class="doc-preview-status" id="docPreviewStatusLabel">Interactive</span>
+                  </div>
+                  
+                  <!-- ZOOM & CROP CONTROLS -->
+                  <div class="zoom-toolbar" style="display: flex; gap: 0.35rem; align-items: center;">
+                    <button type="button" class="btn-secondary btn-zoom" id="zoomInBtn" title="Zoom In">🔍 +</button>
+                    <button type="button" class="btn-secondary btn-zoom" id="zoomOutBtn" title="Zoom Out">🔍 −</button>
+                    <button type="button" class="btn-secondary btn-zoom" id="rotateBillBtn" title="Rotate 90°">⟳ Rotate</button>
+                    <button type="button" class="btn-primary" id="cropScanBtn" style="height: 26px; font-size: 0.72rem; padding: 0 0.6rem;">
+                      ✂️ Select & Scan Table
+                    </button>
+                  </div>
                 </div>
-                <div class="doc-preview-sheet" id="docPreviewSheet">
-                  <div class="simulated-bill-header">
-                    <div class="sim-bill-logo" id="simBillLogo">ORIGINAL INVOICE</div>
-                    <div class="sim-bill-meta" id="simBillMeta">TAX INVOICE FILE</div>
+
+                <!-- Guidance prompt for the user -->
+                <div id="cropInstructionBadge" style="background: #ecfdf5; color: #047857; font-size: 0.75rem; padding: 4px 8px; border-bottom: 1px solid #a7f3d0; display: none;">
+                  💡 <strong>Tip:</strong> Drag your mouse over <strong>just the medicine rows</strong> to zoom and scan without GST footer!
+                </div>
+
+                <div class="doc-preview-sheet" id="docPreviewSheet" style="position: relative; overflow: auto; max-height: 520px;">
+                  <div id="originalBillImgContainer" style="position: relative; display: inline-block; width: 100%; text-align: center;">
+                    <img id="originalBillPreviewImg" src="" alt="Uploaded Bill Document" style="max-width: 100%; display: none; user-select: none; -webkit-user-drag: none;">
+                    <!-- Canvas for Interactive Crop / Zoom Box -->
+                    <canvas id="cropCanvasOverlay" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
                   </div>
-                  <div id="originalBillImgContainer" style="margin-top: 0.5rem; text-align: center;">
-                    <img id="originalBillPreviewImg" src="" alt="Uploaded Bill Document" style="max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--color-border); display: none;">
-                  </div>
-                  <div class="simulated-bill-table" id="simBillTable">
-                    <!-- Text preview if image is loading -->
-                  </div>
+                  <div class="simulated-bill-table" id="simBillTable"></div>
                 </div>
               </div>
 
@@ -1416,7 +1430,7 @@
         <!-- ====================================================================
              PANEL 3: MEDICINE INVENTORY
              ==================================================================== -->
-        <section class="content-panel panel-hidden" id="paneInventory" aria-label="Medicine Inventory">
+        <section class="content-panel panel-hidden" id="paneInventory" aria-label="Stock Inventory">
           
           <div class="inventory-controls-header">
             <div class="inventory-search-box">
@@ -1798,6 +1812,18 @@
           <label for="mMedName" class="form-label">Medicine Name *</label>
           <input type="text" id="mMedName" class="form-input" placeholder="e.g. Augmentin 625 Duo Tablet" required>
         </div>
+        <div class="form-group">
+          <label for="mDemandTier" class="form-label">Demand Category (Stock Alert Margin)</label>
+          <div class="input-wrapper select-wrapper">
+            <select id="mDemandTier" class="form-input select-input">
+              <option value="AUTO">✨ Auto-Detect from Medicine Name</option>
+              <option value="HIGH_DEMAND">High Demand (Common / Fast Moving — Alert at ≤50)</option>
+              <option value="MEDIUM_DEMAND">Medium Demand (Standard / Maintenance — Alert at ≤20)</option>
+              <option value="LOW_DEMAND">Low Demand (Specialist / Rare — Alert at ≤5)</option>
+            </select>
+          </div>
+        </div>
+
 
         <div class="form-row-2col">
           <div class="form-group">
@@ -1845,6 +1871,124 @@
           <button type="submit" class="btn-primary">Save to Stock</button>
         </div>
       </form>
+    </div>
+  </div>
+  
+  <!-- ==========================================================================
+       MODAL: PHARMACY PROFILE & DP
+       ========================================================================== -->
+  <div id="profileModal" class="modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="modal-backdrop" id="profileModalBackdrop"></div>
+    <div class="modal-card gradient-border-card" style="max-width: 520px;">
+      
+      <div class="modal-header">
+        <h3 class="modal-title" id="profileModalTitle">Pharmacy Profile</h3>
+        <button type="button" class="btn-close-modal" id="closeProfileModalBtn">×</button>
+      </div>
+
+      <div class="profile-modal-body">
+        
+        <!-- Avatar / DP Section with Camera Overlay -->
+        <div class="profile-dp-container">
+          <div class="profile-dp-wrapper" id="profileDpTrigger" title="Click to upload profile photo">
+            <div class="profile-dp-circle" id="profileDpCircle">
+              <span id="profileModalInitials">PH</span>
+              <img id="profileModalImg" src="" alt="Profile DP" style="display: none;">
+            </div>
+            <div class="profile-camera-badge">📷</div>
+          </div>
+          
+          <input type="file" id="profilePhotoInput" accept="image/*" style="display: none;">
+          
+          <div class="dp-actions-row">
+            <button type="button" class="btn-secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem;" id="changePhotoBtn">Change Photo</button>
+            <button type="button" class="btn-secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.6rem; color: var(--status-critical);" id="removePhotoBtn" hidden>Remove</button>
+          </div>
+        </div>
+
+        <!-- Pharmacy & Owner Details Display (Read-Only) -->
+        <div class="profile-details-grid">
+          <!-- ============================================================
+             OWNER-ONLY STAFF & WORKERS DIRECTORY
+             ============================================================ -->
+        <div id="profileStaffSection" class="profile-staff-box" style="display: none; margin-top: 1rem;">
+          <div class="staff-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div>
+              <span class="detail-label" style="color: #059669; font-weight: 800;">🔒 Owner Access Only</span>
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 0;">Shop Staff & Workers</h4>
+            </div>
+            <button type="button" class="btn-secondary" id="addStaffBtn" style="height: 26px; font-size: 0.72rem; padding: 0 0.5rem;">
+              + Add Worker
+            </button>
+          </div>
+
+          <!-- Quick Add Worker Form (Hidden by default, toggled by "+ Add Worker") -->
+          <div id="quickAddStaffForm" style="display: none; background: #f0fdf4; border: 1px dashed #86efac; padding: 0.65rem; border-radius: 6px; margin-bottom: 0.65rem;">
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 0.4rem; align-items: center;">
+              <input type="text" id="staffNewName" class="form-input" style="height: 28px; font-size: 0.75rem; padding: 0 0.4rem;" placeholder="Worker Name">
+              <select id="staffNewRole" class="form-input select-input" style="height: 28px; font-size: 0.75rem; padding: 0 0.2rem;">
+                <option value="Pharmacist">Pharmacist</option>
+                <option value="Store Manager">Store Manager</option>
+                <option value="Sales Counter">Sales Counter</option>
+                <option value="Delivery/Boy">Delivery Staff</option>
+              </select>
+              <input type="tel" id="staffNewMobile" class="form-input phone-field" style="height: 28px; font-size: 0.75rem; padding: 0 0.4rem;" placeholder="10-digit Mobile">
+              <button type="button" class="btn-primary" id="saveStaffBtn" style="height: 28px; font-size: 0.72rem; padding: 0 0.6rem;">Save</button>
+            </div>
+          </div>
+
+          <!-- List of Workers -->
+          <div id="staffListContainer" style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <!-- Dynamically rendered workers -->
+          </div>
+        </div>
+          <div class="profile-detail-item">
+            <span class="detail-label">Chemist / Shop Name</span>
+            <strong class="detail-value" id="profShopName">—</strong>
+          </div>
+
+          <div class="profile-detail-item">
+            <span class="detail-label">Drug Licence No. (D.L. No.)</span>
+            <strong class="detail-value mono-text" id="profDlNumber">—</strong>
+          </div>
+
+          <div class="profile-detail-item">
+            <span class="detail-label">Pharmacy Type</span>
+            <span class="detail-value" id="profPharmacyType">—</span>
+          </div>
+
+          <div class="profile-detail-item">
+            <span class="detail-label">Pharmacy Mobile</span>
+            <span class="detail-value" id="profPharmacyPhone">—</span>
+          </div>
+
+          <div class="profile-detail-item full-width">
+            <span class="detail-label">Shop Address</span>
+            <span class="detail-value" id="profFullAddress">—</span>
+          </div>
+
+          <div class="profile-detail-item">
+            <span class="detail-label">Responsible Person</span>
+            <strong class="detail-value" id="profOwnerName">—</strong>
+          </div>
+
+          <div class="profile-detail-item">
+            <span class="detail-label">Role</span>
+            <span class="detail-value" id="profRole">—</span>
+          </div>
+
+          <div class="profile-detail-item">
+            <span class="detail-label">Owner Mobile</span>
+            <span class="detail-value" id="profOwnerMobile">—</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="justify-content: flex-end;">
+        <button type="button" class="btn-primary" id="doneProfileBtn" style="min-width: 90px;">Done</button>
+      </div>
+
     </div>
   </div>
 
@@ -2013,6 +2157,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="firebase-config.js"></script>
 
+
+  <!-- Real In-Browser OCR Engine (Tesseract.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <script src="utils/inventoryRules.js"></script>
   <script src="app.js"></script>
+  
 </body>
 </html>
