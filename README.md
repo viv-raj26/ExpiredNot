@@ -1,6 +1,6 @@
 # 💊 EXPIREDNOT — Pharmacy Inventory Intelligence & Expiry Risk Mitigation
 
-[![Production Frontend](https://img.shields.io/badge/Frontend-Vercel%20Live-brightgreen?logo=vercel)](https://expired-not.vercel.app)
+[![Production Frontend](https://img.shields.io/badge/Frontend-Vercel%20Live-brightgreen?logo=vercel)](https://expirednot.vercel.app)
 [![Production Backend](https://img.shields.io/badge/Backend-Render%20Live-46E3B7?logo=render)](https://expirednot.onrender.com)
 [![AI Engine](https://img.shields.io/badge/AI%20Vision-Google%20Gemini%20Multimodal-4285F4?logo=google)](https://ai.google.dev/)
 [![Language](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)](https://python.org)
@@ -19,9 +19,12 @@
 - [✨ Core Capabilities & Features](#-core-capabilities--features)
   - [1. Gemini Multimodal Document AI (Source-of-Truth)](#1-gemini-multimodal-document-ai-source-of-truth)
   - [2. Human Review Gate (#ocrReviewContainer)](#2-human-review-gate-ocrreviewcontainer)
-  - [3. Automated FEFO Inventory & Expiry Risk Engine](#3-automated-fefo-inventory--expiry-risk-engine)
-  - [4. Dual Auth & Firebase $\rightarrow$ Backend Session Re-Bridge](#4-dual-auth--firebase--backend-session-re-bridge)
-  - [5. Distributor Return Manifests & Credit Note Claims](#5-distributor-return-manifests--credit-note-claims)
+  - [3. Permanent Bill History & BLOB Document Storage](#3-permanent-bill-history--blob-document-storage)
+  - [4. Global Real-Time Search Engine](#4-global-real-time-search-engine)
+  - [5. Intelligent Duplicate Bill Detection (2-Level)](#5-intelligent-duplicate-bill-detection-2-level)
+  - [6. Automated FEFO Inventory & Expiry Risk Engine](#6-automated-fefo-inventory--expiry-risk-engine)
+  - [7. Pharmacy Profile & Centralized Session Management](#7-pharmacy-profile--centralized-session-management)
+  - [8. Dual Auth & Firebase $\rightarrow$ Backend Session Re-Bridge](#8-dual-auth--firebase--backend-session-re-bridge)
 - [🛠️ Complete Technology Stack](#️-complete-technology-stack)
 - [🗄️ Database Architecture (SQLite3 Schema)](#️-database-architecture-sqlite3-schema)
 - [📡 API Reference](#-api-reference)
@@ -38,7 +41,8 @@
 | **Manual Purchase Bill Entry** | Typing 15–30 medicines, batch codes, and expiries takes 20+ mins per invoice. | **Multimodal Vision AI** extracts printed bills in **~7.5s** with 100% Source-of-Truth fidelity. |
 | **3%–7% Annual Turnover Loss** | Near-expiry stock is discovered too late after distributor return deadlines expire. | **Automated Expiry Radar** tracks days remaining and alerts chemists 90/60/30 days in advance. |
 | **Dispensing Errors & Violations** | Dispensing newer batches while older batches expire violates the Drugs & Cosmetics Act. | **Strict FEFO POS** enforces dispensing the earliest-expiring batch first. |
-| **Distributor Credit Note Delays** | Cumbersome manual tracking of return batches across suppliers. | **1-Click Return Manifests** grouped by distributor with purchase rates and invoice tracking. |
+| **Duplicate Bill Entries** | Accidental re-scanning of the same invoice inflates inventory counts and causes tax mismatches. | **2-Level Duplicate Guard** (SHA-256 file checksum + metadata matching) prevents double-entry. |
+| **Lost Physical Invoices** | Paper bills degrade or get lost, making tax audits and distributor credit claims impossible. | **Permanent SQLite BLOB Storage** preserves the original image/PDF alongside the digital ledger. |
 
 ---
 
@@ -50,35 +54,41 @@ flowchart TD
         UI["SPA Interface (Vanilla ES6+ / HTML5 / CSS3)"]
         AuthModule["Firebase Auth & Client Session State"]
         ReviewGate["Side-by-Side OCR Review (#ocrReviewContainer)"]
+        GlobalSearch["Topbar Debounced Search Engine"]
+        BillHistoryUI["Bill History Explorer & Document Modal"]
         FEFOEngine["Client-Side FEFO POS & Analytics Engine"]
     end
 
-    subgraph Backend["Backend API Server (Render / Gunicorn WSGI)"]
+    subgraph Backend["Backend API Server (Render / Python WSGI)"]
         Router["HTTP / WSGI Request Handler (server.py)"]
         SessionBridge["Firebase-to-SQLite Auth Re-Bridge"]
         Parser["Gemini Multimodal Document Parser"]
         Validator["Non-Mutating Source-of-Truth Validator"]
-        DBEngine["SQLite3 ACID Data Layer (expirednot.db)"]
+        DupDetector["SHA-256 & Metadata Duplicate Detector"]
+        DocStreamer["Secure Authenticated BLOB Document Streamer"]
+        DBEngine["SQLite3 ACID Data Layer (WAL Mode)"]
     end
 
     subgraph External["External Cloud Services"]
         GeminiAPI["Google Gemini 3.8/3.7/3.6/3.5 Flash Cascade"]
         Firebase["Google Firebase Authentication"]
-        EmailServices["Multi-Provider Email Dispatcher (Resend / Gmail SMTP / Brevo)"]
+        EmailServices["Multi-Provider Email Dispatcher (Resend / SMTP)"]
     end
 
-    UI -->|"1. Upload Bill (JPG/PDF)"| Router
-    Router -->|"2. Image Bytes & System Prompt"| Parser
-    Parser -->|"3. Multimodal Vision Inference"| GeminiAPI
-    GeminiAPI -->|"4. Structured JSON Response"| Parser
-    Parser -->|"5. Zero-Fallback Normalization"| Validator
-    Validator -->|"6. Validated Bill with Issue Flags"| ReviewGate
-    ReviewGate -->|"7. Confirm & Save (authenticatedFetch)"| Router
-    Router -->|"8. Session Validation"| SessionBridge
-    SessionBridge <-->|"Token Verification"| Firebase
-    Router -->|"9. Atomic Commit (Bills, Batches, Movements)"| DBEngine
-    DBEngine -->|"10. Live Inventory Sync"| UI
-    Router -.->|"Email OTP Dispatch"| EmailServices
+    UI -->|"1. Upload Bill (JPG/PNG/PDF)"| Router
+    Router -->|"2. SHA-256 Check & Image Bytes"| DupDetector
+    DupDetector -->|"3. Binary Payload"| Parser
+    Parser -->|"4. Multimodal Vision Inference"| GeminiAPI
+    GeminiAPI -->|"5. Structured JSON Response"| Parser
+    Parser -->|"6. Non-Mutating Validation"| Validator
+    Validator -->|"7. Preview with Verification Flags"| ReviewGate
+    ReviewGate -->|"8. Confirm & Save (authenticatedFetch)"| Router
+    Router -->|"9. Token Verification"| SessionBridge
+    SessionBridge <-->|"Token Exchange"| Firebase
+    Router -->|"10. Atomic Commit (Bills, Batches, Docs, Ledger)"| DBEngine
+    GlobalSearch <-->|"Debounced Query (/api/search)"| Router
+    BillHistoryUI <-->|"Stream Original Document (/api/bills/:id/document)"| DocStreamer
+    DocStreamer <-->|"Fetch BLOB"| DBEngine
 ```
 
 ---
@@ -88,51 +98,44 @@ flowchart TD
 ### 1. Gemini Multimodal Document AI (Source-of-Truth)
 - **Source-of-Truth Extraction**: Extracts *only* what is visibly printed on the invoice. Never uses external medical knowledge to autocorrect or expand medicine names, batches, or strengths.
 - **Zero-Synthetic-Fallback Guarantee**: Does not fabricate default quantities (`1.0`), estimated MRPs (`rate * 1.3`), default packs (`"10s"`), fake distributor names (`"Wholesale Supplier"`), or synthetic invoice numbers (`"INV-..."`). Missing/unreadable fields strictly output `null` with `needs_verification: true`.
-- **Latency Optimization**: Configured with `thinkingConfig: {"thinkingLevel": "low"}` and `temperature: 0.1`, delivering **~7.26s – 7.86s** extraction times (~75% faster than standard 30s+ inference).
+- **Latency Optimization**: Configured with `thinkingConfig: {"thinkingLevel": "low"}` and `temperature: 0.1`, delivering **~7.2s – 7.8s** extraction times.
 - **Resilient Model Cascade**: Seamless failover across Google AI models (`gemini-3.8-flash` $\rightarrow$ `gemini-3.7-flash` $\rightarrow$ `gemini-3.6-flash` $\rightarrow$ `gemini-flash-latest` $\rightarrow$ `gemini-3.5-flash`) protects against transient 503 load spikes.
-- **Strict Non-Mutating Validation (`validate_extracted_bill`)**: Analyzes date formats (YYYY-MM), expiry sanity (2020–2045), numeric logic (MRP $\ge$ purchase rate), and duplicate batch rows without altering raw extracted values.
-- **Granular Server-Side Timing Logs**: High-precision `time.perf_counter()` timestamps across all 8 pipeline stages:
-  ```text
-  [Bill] request received (size: 164218 bytes, mime: 'image/jpeg')
-  [Bill] image preparation completed (time: 0.0303s)
-  [Gemini] request started (model: 'gemini-3.7-flash', payload: 164218 bytes)
-  [Gemini] response received (model: 'gemini-3.7-flash', status: 200, latency: 7.26s)
-  [Gemini] JSON parsed (time: 0.0001s)
-  [Bill] validation completed (issues: 0, time: 0.0001s)
-  [Bill] normalization completed (items: 3, time: 0.0001s)
-  [Bill] total processing time: 7.30s
-  ```
 
 ### 2. Human Review Gate (`#ocrReviewContainer`)
 - Renders extracted line items directly adjacent to the uploaded invoice preview image/PDF.
-- Allows pharmacists to review and edit medicine names, batch numbers, expiry dates, quantities, purchase rates, and MRPs.
+- Allows pharmacists to review and edit medicine names, batch numbers, expiry dates, quantities, purchase rates, and MRPs before saving.
 - Clear visual badges differentiate confident fields (`✓ Confident`) from items requiring verification (`⚠ Verify`).
-- Real-time row-total arithmetic and add/remove line capabilities.
-- Prevents database insertion until the chemist explicitly verifies required fields.
 
-### 3. Automated FEFO Inventory & Expiry Risk Engine
+### 3. Permanent Bill History & BLOB Document Storage
+- **Dedicated Section**: Permanent `🧾 Bill History` tab in the vertical sidebar.
+- **Multi-Field Search & Filter**: Search across distributor, invoice number, medicine name, batch number, place/city, GSTIN, or DL number with date range (*Today*, *Last 7 Days*, *Last 30 Days*, *All Time*) and price sorting.
+- **Permanent SQLite BLOB Storage**: Uploaded bills (images and PDFs) are stored as binary objects (`BLOB`) in the `bill_documents` table, surviving server restarts and redeployments.
+- **Authenticated Streaming (`/api/bills/:id/document`)**: Securely streams the original invoice with session token authorization and cross-user data isolation.
+
+### 4. Global Real-Time Search Engine
+- Topbar search input (`#globalMedicineSearchInput`) with 150ms client debouncing.
+- Searches both **Medicines & Batches** (with live FEFO status tags: *Safe*, *Near Expiry*, *Expired*, and available stock) and **Purchase Bills** (with supplier, invoice #, and amount).
+- **Instant Click Navigation**: Clicking a medicine navigates to the Inventory tab and applies the search filter; clicking a bill instantly opens the detailed Bill View modal.
+
+### 5. Intelligent Duplicate Bill Detection (2-Level)
+- **Level 1 (SHA-256 Exact File Hash)**: Before calling Gemini, checks if the exact file binary was previously uploaded by the user, immediately blocking redundant API calls and inventory duplication.
+- **Level 2 (Supplier + Invoice Metadata Match)**: After extraction, detects if the same supplier and invoice number already exist, prompting the user with a warning modal offering *"View Existing Bill"*, *"Cancel Upload"*, or *"Continue Anyway"*.
+
+### 6. Automated FEFO Inventory & Expiry Risk Engine
 - **First-Expired, First-Out (FEFO)**: Automatically sorts active batches so point-of-sale dispensing always pulls from the earliest expiring stock.
-- **Real-Time Expiry Status Buckets**:
+- **Expiry Radar**:
   - 🔴 **Critical (< 30 Days)**: High risk of loss; flagged for immediate clearance or distributor return.
   - 🟡 **Warning (30 – 90 Days)**: Return window active; eligible for 100% distributor credit note claims.
   - 🟢 **Healthy (> 90 Days)**: Standard stock life.
-- **Financial Risk Intelligence**: Calculates exact monetary value at risk (`quantity * purchase_rate`) across batches.
-- **Complete Movement Audit Trail**: Every ingestion, sale, adjustment, or return is immutably recorded in the `movements` table.
+- **Stock Clearance Ledger**: Track items sold, returned to distributor, or discarded with an immutable audit trail in `movements`.
 
-### 4. Dual Auth & Firebase $\rightarrow$ Backend Session Re-Bridge
-- **Split-Screen Authentication**: Sign in with Email / Password or Mobile Number (+91) with real 6-digit cryptographic OTPs.
-- **Multi-Step Pharmacy Onboarding Wizard**:
-  - *Step 1*: Pharmacy Details (Shop Name, Drug License No., Address, GSTIN, Pharmacy Type).
-  - *Step 2*: Owner / Responsible Person (Name, Role, Mobile Number).
-  - *Step 3*: Account Security (Live password strength meter & checklist).
-- **Automatic Session Re-Bridge**:
-  - Ephemeral SQLite database resets on Render redeploys are automatically handled.
-  - `ensureBackendAuthSession()` exchanges fresh Firebase ID tokens with `/api/auth/firebase` to maintain backend session validity.
-  - `authenticatedFetch()` intercepts `401 Unauthorized` responses and automatically refreshes session credentials with a single-retry guard.
+### 7. Pharmacy Profile & Centralized Session Management
+- Permanent storage of pharmacy credentials (Shop Name, Owner Name, DL No., GSTIN, Mobile, Address, Avatar) in the SQLite `users` table.
+- Clean header interface: standalone logout button removed; **Sign Out** is cleanly housed inside the Pharmacy Profile modal (`#profileModal`).
 
-### 5. Distributor Return Manifests & Credit Note Claims
-- Automatically aggregates near-expiry and expired batches grouped by distributor.
-- Generates structured return manifests containing distributor name, invoice number, batch numbers, and credit claim amounts.
+### 8. Dual Auth & Firebase $\rightarrow$ Backend Session Re-Bridge
+- Sign in with Email / Password, Mobile (+91) with cryptographic OTPs, or Google One-Tap / Firebase Auth.
+- Session bridge automatically exchanges Firebase tokens with `/api/auth/firebase` to ensure seamless API access across page refreshes.
 
 ---
 
@@ -141,17 +144,14 @@ flowchart TD
 | Layer | Technology | Details & Implementation |
 | :--- | :--- | :--- |
 | **Frontend SPA** | **Vanilla JavaScript (ES6+)** | Native DOM manipulation, async/await, modular event delegation, zero framework overhead. |
-| **Styling & UI** | **Pure Vanilla CSS3** | Custom design tokens (`--brand-primary`, `--status-critical`), CSS Grid, Flexbox, responsive viewports (320px–4K). |
-| **Visualizations** | **Native SVG & CSS Charts** | Dynamic progress rings, distribution bars, and KPI charts with zero layout shift. |
+| **Styling & UI** | **Pure Vanilla CSS3** | Custom design tokens (`--brand-primary`, `--status-critical`), CSS Grid, Flexbox, multi-device orientation rules. |
 | **Backend Runtime** | **Python 3.13** | Built using Python standard library HTTP/WSGI servers for low latency and high concurrency. |
 | **WSGI Server** | **Gunicorn `>=21.2.0`** | Configured with `timeout = 120` in `gunicorn.conf.py` and `Procfile` for production execution on Render. |
-| **Database** | **SQLite3 (`expirednot.db`)** | Embedded ACID relational database with thread-safe connections and `Row` factory. |
+| **Database** | **SQLite3 (`expirednot.db`)** | Embedded ACID relational database with Write-Ahead Logging (WAL) and BLOB document storage. |
 | **AI Vision Engine** | **Google Gemini Multimodal REST API** | Invoked via `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`. |
-| **SSL / TLS** | **`certifi` CA Bundle** | Strict `ssl.create_default_context(cafile=certifi.where())` verification with zero insecure fallbacks. |
 | **Authentication** | **Firebase Auth + PBKDF2** | Firebase Auth / Google OAuth 2.0 client bridge + PBKDF2-HMAC-SHA256 (100,000 rounds) for password auth. |
-| **OTP Engine** | **SHA-256 + Cryptographic Salt** | Random 6-digit codes (`secrets.randbelow(900000) + 100000`) with 5-minute validity and 5-attempt limits. |
-| **Email Delivery** | **Multi-Provider Engine** | Resend API $\rightarrow$ Gmail SMTP SSL $\rightarrow$ Brevo API with dev console fallback. |
-| **Frontend Hosting**| **Vercel** | Global Edge CDN hosting at `https://expired-not.vercel.app`. |
+| **OTP Engine** | **SHA-256 + Cryptographic Salt** | Random 6-digit codes (`secrets.randbelow(900000) + 100000`) with 5-minute validity. |
+| **Frontend Hosting**| **Vercel** | Global Edge CDN hosting at `https://expirednot.vercel.app`. |
 | **Backend Hosting** | **Render** | Python Web Service at `https://expirednot.onrender.com`. |
 
 ---
@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS users (
     pharmacy_type TEXT DEFAULT 'Retail Pharmacy',
     owner_name TEXT,
     role TEXT DEFAULT 'Owner',
+    profile_photo TEXT,
     auth_provider TEXT DEFAULT 'email',
     created_at INTEGER
 );
@@ -193,11 +194,11 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- 3. Cryptographic Verification OTPs
 CREATE TABLE IF NOT EXISTS otps (
     email TEXT PRIMARY KEY,
-    otp_hash TEXT,
-    salt TEXT,
-    expires_at INTEGER,
+    otp_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
     attempts INTEGER DEFAULT 0,
-    created_at INTEGER
+    created_at INTEGER NOT NULL
 );
 
 -- 4. Ingested Purchase Bills
@@ -205,16 +206,34 @@ CREATE TABLE IF NOT EXISTS bills (
     id TEXT PRIMARY KEY,
     user_id TEXT,
     distributor TEXT,
+    seller_name TEXT,
     invoice_no TEXT,
     invoice_date TEXT,
     total_amount REAL,
+    gstin TEXT,
+    dl_number TEXT,
     original_file_path TEXT,
     file_name TEXT,
+    items_count INTEGER DEFAULT 0,
+    verified_status TEXT DEFAULT 'Verified',
     created_at INTEGER,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
--- 5. Medicine Batches (FEFO Core)
+-- 5. Original Bill Document BLOB Storage
+CREATE TABLE IF NOT EXISTS bill_documents (
+    bill_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    file_name TEXT,
+    file_mime TEXT,
+    file_data BLOB,
+    file_size INTEGER,
+    file_hash TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+-- 6. Medicine Batches (FEFO Core)
 CREATE TABLE IF NOT EXISTS batches (
     id TEXT PRIMARY KEY,
     user_id TEXT,
@@ -234,28 +253,31 @@ CREATE TABLE IF NOT EXISTS batches (
     FOREIGN KEY(bill_id) REFERENCES bills(id)
 );
 
--- 6. Inventory Movements Ledger
+-- 7. Inventory Movements Ledger
 CREATE TABLE IF NOT EXISTS movements (
     id TEXT PRIMARY KEY,
     user_id TEXT,
-    type TEXT, -- 'Purchased', 'Dispensed', 'Returned', 'Adjustment'
-    medicine_name TEXT,
-    batch_no TEXT,
+    batch_id TEXT,
+    movement_type TEXT, -- 'IN', 'SOLD', 'DISCARD', 'RETURN', 'ADJUSTMENT'
     quantity REAL,
-    value REAL,
+    unit_rate REAL,
+    total_amount REAL,
     notes TEXT,
     created_at INTEGER,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
--- 7. System & Expiry Notifications
+-- 8. Real-Time Notification Center
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
-    user_id TEXT,
-    text TEXT,
-    type TEXT, -- 'bill', 'expiry', 'system'
-    is_read INTEGER DEFAULT 0,
-    created_at INTEGER,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'BILL_CONFIRMED', 'EXPIRY_ALERT', 'LOW_STOCK'
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    link_tab TEXT,
+    link_id TEXT,
+    read_status INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
 ```
@@ -264,118 +286,52 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 ## 📡 API Reference
 
-### Health & Auth Endpoints
+### Authentication & Profile
+- `POST /api/auth/register` — Create new chemist account.
+- `POST /api/auth/login` — Email/password authentication.
+- `POST /api/auth/firebase` — Session bridge from Firebase ID token.
+- `POST /api/auth/send-otp` / `POST /api/auth/verify-otp` — Cryptographic 6-digit OTP engine.
+- `GET /api/profile` / `POST /api/profile` — Retrieve and update pharmacy credentials.
 
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Server status and database health check | No |
-| `POST` | `/api/auth/register` | Register new user & generate 6-digit OTP | No |
-| `POST` | `/api/auth/verify-otp` | Verify OTP and establish authenticated session | No |
-| `POST` | `/api/auth/login` | Email & password login | No |
-| `POST` | `/api/auth/firebase` | Exchange Firebase ID Token for backend SQLite session token | No |
-| `GET` | `/api/auth/session` | Validate current session and retrieve pharmacy profile | `Bearer <token>` |
-| `POST` | `/api/auth/logout` | Invalidate and purge backend session | `Bearer <token>` |
-| `POST` | `/api/onboarding/complete`| Finalize pharmacy profile (D.L. No, Address, GSTIN) | `Bearer <token>` |
+### Bill Extraction & History
+- `POST /api/bills/analyze` — Multimodal AI extraction with SHA-256 duplicate checks.
+- `POST /api/bills/confirm` — Atomic confirmation with UUID generation and inventory insertion.
+- `GET /api/bills` — Retrieve bill history with search and date filters.
+- `GET /api/bills/:id` — Retrieve bill metadata and itemized batches.
+- `GET /api/bills/:id/document` — Stream original uploaded bill image/PDF with token verification.
 
-### Bill AI & Inventory Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/bills/analyze` | Multimodal invoice extraction via Gemini Vision AI | No (or Guest) |
-| `POST` | `/api/bills/confirm` | Confirm validated bill & insert batch inventory | `Bearer <token>` |
-| `GET` | `/api/inventory` | Retrieve all active pharmacy medicine batches (FEFO) | `Bearer <token>` |
-| `GET` | `/api/bills` | List all historical distributor invoices | `Bearer <token>` |
+### Search, Inventory & Movements
+- `GET /api/search?q=...` — Debounced global search across medicines, batches, suppliers, and invoices.
+- `GET /api/inventory` — List active stock sorted by FEFO expiry priority.
+- `POST /api/inventory/clear-stock` — Record stock clearance (Sold, Discard, Return).
+- `GET /api/notifications` — Retrieve notification center alerts.
 
 ---
 
 ## 🚀 Local Development Quickstart
 
-### Prerequisites
-- Python 3.10+
-- Google Gemini API Key ([Get one at Google AI Studio](https://aistudio.google.com/app/apikey))
-
-### 1. Clone the Repository
 ```bash
+# 1. Clone repository
 git clone https://github.com/viv-raj26/ExpiredNot.git
 cd ExpiredNot
-```
 
-### 2. Set Up Virtual Environment & Dependencies
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and insert your GEMINI_API_KEY
 
-### 3. Configure Environment Variables
-Create a `.env` file in the project root:
-```env
-PORT=3000
-DEMO_OTP_MODE=false
-ALLOWED_ORIGINS=*
-
-# Google AI Gemini API Key (Required for Smart Bill OCR)
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Email OTP Provider (Optional for real email delivery)
-GMAIL_USER=your_email@gmail.com
-GMAIL_APP_PASSWORD=your_gmail_app_password
-RESEND_API_KEY=your_resend_key_here
-BREVO_API_KEY=your_brevo_key_here
-```
-
-### 4. Start the Application
-```bash
-# Start backend server
+# 3. Run backend server
 python3 server.py
+
+# 4. Open in browser
+# Navigate to http://localhost:3000
 ```
-Visit **`http://localhost:3000`** in your browser.
-
----
-
-## ☁️ Production Deployment Guide
-
-### Deploying Frontend to Vercel
-1. Import repository `viv-raj26/ExpiredNot` on [Vercel](https://vercel.com).
-2. Framework Preset: **Other**.
-3. Build Command: *None* (Pure static HTML/CSS/JS).
-4. Output Directory: `.` (Project root).
-5. The client automatically connects to the production Render backend (`https://expirednot.onrender.com`).
-
-### Deploying Backend to Render
-1. Create a new **Web Service** on [Render](https://render.com) connected to `viv-raj26/ExpiredNot`.
-2. Runtime: **Python 3**.
-3. Build Command: `pip install -r requirements.txt`
-4. Start Command: `gunicorn --timeout 120 server:app`
-5. Configure Environment Variables in the Render Dashboard:
-   - `GEMINI_API_KEY` = *[Your Gemini API Key]*
-   - `PYTHON_VERSION` = `3.13.0`
-   - `ALLOWED_ORIGINS` = `https://expired-not.vercel.app`
-   - `DEMO_OTP_MODE` = `false`
 
 ---
 
 ## 🛡️ Security, Privacy & Regulatory Compliance
 
-1. **Drugs and Cosmetics Act, 1940 (India)**:
-   - Enforces FEFO dispensing to guarantee expired medicines are never sold to consumers.
-   - Stores required 20B/21B Drug License numbers for regulatory audit readiness.
-2. **Cryptographic Protection**:
-   - Passwords hashed using **PBKDF2-HMAC-SHA256** with unique 16-byte random hex salts.
-   - Session tokens generated using cryptographically secure random bytes (`secrets.token_hex(32)`).
-   - OTP codes hashed with SHA-256 before database storage.
-3. **Data Privacy & Transport Security**:
-   - 100% verified SSL context using `certifi` CA bundles.
-   - Sensitive credentials, API keys, and database files excluded from Git via `.gitignore`.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
-
-<div align="center">
-  <sub>Developed with ❤️ for community pharmacists and healthcare safety.</sub>
-</div>
+1. **Zero SQL Injection**: 100% of database queries use parameterized SQL (`?` placeholders).
+2. **Strict Multi-Tenant Scoping**: All database operations enforce `WHERE user_id = ?`.
+3. **Password Security**: PBKDF2-HMAC-SHA256 (100,000 iterations) with unique cryptographically random salts.
+4. **Document Access Control**: Original bill BLOBs are streamed only to verified session token holders.
+5. **No Synthetic Data**: Gemini AI extracts strictly what is visible on the bill as the single source of truth.
