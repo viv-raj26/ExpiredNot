@@ -165,7 +165,11 @@ body {
 
 /* View State Management */
 .view-hidden { display: none !important; }
-.view-active { display: flex !important; }
+.view-active { display: block !important; }
+.welcome-screen.view-active { display: flex !important; }
+.app-layout.view-active { display: grid !important; }
+.signup-layout.view-active { display: flex !important; flex-direction: column !important; }
+.dashboard-layout.view-active { display: flex !important; flex-direction: column !important; width: 100% !important; }
 
 .step-hidden { display: none !important; }
 .step-active { display: block !important; animation: stepFadeIn 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }

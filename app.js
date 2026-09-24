@@ -400,8 +400,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  if (enterAppBtn) enterAppBtn.addEventListener('click', () => showScreen('auth'));
-  if (backToWelcomeBtn) backToWelcomeBtn.addEventListener('click', () => showScreen('welcome'));
+  window.showScreen = showScreen;
+
+  if (enterAppBtn) enterAppBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    showScreen('auth');
+  });
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#enterAppBtn');
+    if (btn) {
+      e.preventDefault();
+      showScreen('auth');
+    }
+  });
+
+  if (backToWelcomeBtn) backToWelcomeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    showScreen('welcome');
+  });
   if (createAccountLink) createAccountLink.addEventListener('click', () => {
     googleConnectedUser = null;
     const googleConnectedPill = document.getElementById('googleConnectedPill');
