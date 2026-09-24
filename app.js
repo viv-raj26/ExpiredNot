@@ -337,7 +337,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelSignupBtn = document.getElementById('cancelSignupBtn');
   const signupCancelBtn = document.getElementById('signupCancelBtn');
   const goToDashboardBtn = document.getElementById('goToDashboardBtn');
-  const logoutBtn = document.getElementById('logoutBtn');
 
   const showScreen = (target) => {
     // Protected Route Check
@@ -429,27 +428,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cancelSignupBtn) cancelSignupBtn.addEventListener('click', () => showScreen('auth'));
   if (signupCancelBtn) signupCancelBtn.addEventListener('click', () => showScreen('auth'));
   if (goToDashboardBtn) goToDashboardBtn.addEventListener('click', () => showScreen('dashboard'));
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        if (window.firebaseAuth) {
-          await window.firebaseAuth.signOut();
-        }
-      } catch {}
-      try {
-        await fetch(`${API_BASE_URL}/api/auth/logout`, { credentials: 'omit', headers: getAuthHeaders(), method: 'POST' });
-      } catch {}
-      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
-      sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
-      localStorage.removeItem(ACTIVE_TOKEN_KEY);
-      sessionToken = null;
-      currentPharmacy = null;
-      showScreen('auth');
-      showAuthNotice('Signed out of pharmacy workspace.', 'info');
-    });
-  }
 
   // Listen to hash changes for deep linking & protected route checks
   window.addEventListener('hashchange', () => {
