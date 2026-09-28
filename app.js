@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const ACTIVE_SESSION_KEY = 'expirednot_active_session';
   const ACTIVE_TOKEN_KEY = 'expirednot_auth_token';
 
+  // Production Backend API URL Resolution:
+  // When running locally (localhost / 127.0.0.1), use relative '' so it talks to local server.py.
+  // When deployed to Vercel (or any other production host), route directly to deployed Render backend.
   const isLocalhost = typeof window !== 'undefined' && window.location && (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1' ||
@@ -29,26 +32,17 @@ document.addEventListener('DOMContentLoaded', () => {
     ? (window.__EXPIREDNOT_API_URL__ || window.EXPIREDNOT_API_BASE_URL || window.VITE_API_URL || window.NEXT_PUBLIC_API_URL || window.REACT_APP_API_URL)
     : (isLocalhost ? '' : 'https://expirednot.onrender.com');
 
-  const toTitleCase = (str) => {
-    if (!str || typeof str !== 'string') return '';
-    return str
-      .toLowerCase()
-      .trim()
-      .split(/\s+/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
-
   let currentPharmacy = null;
   let sessionToken = localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || null;
 
+  // Real Database for Active Pharmacy (STRICT ZERO DEFAULT)
   let pharmacyDb = {
-    batches: [],
-    bills: [],
-    movements: [],
-    expenses: [],
-    notifications: [],
-    activity: []
+    batches: [],       // { id, name, generic_name, pack, batchNo, expiryDate, quantity, purchaseRate, mrp, rack, distributor, createdAt }
+    bills: [],         // { id, distributor, invoiceNo, date, totalAmount, itemsCount, originalFileUrl, timestamp }
+    movements: [],     // { id, timestamp, type, medicineName, batchNo, quantity, value, notes }
+    expenses: [],      // { id, date, category, desc, amount }
+    notifications: [], // { id, text, type, timestamp, read: false }
+    activity: []       // { id, text, timestamp }
   };
 
   let isDemoMode = false;
@@ -62,8 +56,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return headers;
   };
 
+  /**
+   * Automatic Firebase -> Backend Session Bridge:
+   * Obtains a fresh Firebase ID Token via getIdToken(forceRefresh) and exchanges it with /api/auth/firebase
+   * to ensure a valid backend SQLite session token exists in sessionStorage and localStorage.
+   */
   const ensureBackendAuthSession = async (forceRefresh = false) => {
-    if (sessionToken && !forceRefresh) return sessionToken;
+    if (sessionToken && !forceRefresh) {
+      return sessionToken;
+    }
 
     let fbUser = window.firebaseAuth ? window.firebaseAuth.currentUser : null;
     if (!fbUser && window.firebaseAuth && typeof window.firebaseAuth.onAuthStateChanged === 'function') {
@@ -76,10 +77,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    if (!fbUser) return sessionToken;
+    if (!fbUser) {
+      return sessionToken;
+    }
 
     try {
+      // Obtain fresh Firebase ID Token
       const idToken = await fbUser.getIdToken(forceRefresh);
+
       const payload = {
         email: fbUser.email,
         uid: fbUser.uid,
@@ -87,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         id_token: idToken
       };
 
+      // Restore existing pharmacy details if backend restarted
       if (currentPharmacy) {
         if (currentPharmacy.shop_name) payload.shop_name = currentPharmacy.shop_name;
         if (currentPharmacy.dl_number) payload.dl_number = currentPharmacy.dl_number;
@@ -117,53 +123,53 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
             localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
           }
+          console.log('[AUTH BRIDGE] Successfully created/refreshed backend session token.');
           return sessionToken;
         }
       }
     } catch (err) {
       console.warn('[AUTH BRIDGE] Error refreshing backend session token:', err);
     }
+
     return sessionToken;
   };
 
+  /**
+   * Wrapper around fetch() that attaches backend session authorization headers and
+   * automatically re-bridges Firebase -> backend on HTTP 401 Unauthorized with a single retry.
+   */
   const authenticatedFetch = async (url, options = {}, retryCount = 0) => {
     if (!sessionToken) {
       await ensureBackendAuthSession(false);
     }
 
     const opt = { ...options };
+    const baseHeaders = { 'Content-Type': 'application/json' };
     opt.headers = {
-      'Content-Type': 'application/json',
+      ...baseHeaders,
       ...(options.headers || {}),
       ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {})
     };
 
     let res = await fetch(url, opt);
+
+    // Auto-Retry ONCE on 401 Unauthorized by re-bridging Firebase -> Backend
     if (res.status === 401 && retryCount === 0) {
+      console.log('[AUTH BRIDGE] Backend returned 401 Unauthorized. Auto re-bridging Firebase session...');
       const freshToken = await ensureBackendAuthSession(true);
       if (freshToken) {
         opt.headers['Authorization'] = `Bearer ${freshToken}`;
         res = await fetch(url, opt);
       }
     }
+
     return res;
   };
 
   const loadPharmacyData = async (pharmacyId) => {
     if (!pharmacyId || isDemoMode) return;
     
-    try {
-      const profRes = await authenticatedFetch(`${API_BASE_URL}/api/profile`);
-      if (profRes.ok) {
-        const profData = await profRes.json();
-        if (profData.user) {
-          currentPharmacy = profData.user;
-          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-          localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-        }
-      }
-    } catch (e) {}
-
+    // 1. Fetch real batches from SQLite backend
     try {
       const res = await authenticatedFetch(`${API_BASE_URL}/api/inventory`);
       if (res.ok) {
@@ -181,13 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
             mrp: b.mrp,
             rack: b.rack,
             distributor: b.distributor,
-            demandTier: b.demand_tier || 'MEDIUM_DEMAND',
             createdAt: b.created_at
           }));
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Backend offline, using scoped local storage cache:', e);
+    }
 
+    // 2. Fetch real bills from SQLite backend
     try {
       const billsRes = await authenticatedFetch(`${API_BASE_URL}/api/bills`);
       if (billsRes.ok) {
@@ -199,59 +207,26 @@ document.addEventListener('DOMContentLoaded', () => {
             invoiceNo: b.invoice_no,
             date: b.invoice_date,
             totalAmount: b.total_amount,
-            itemsCount: b.items_count || 1,
             originalFileUrl: b.original_file_path,
+            fileName: b.file_name,
+            itemsCount: b.items_count || 1,
             timestamp: b.created_at ? new Date(b.created_at * 1000).toLocaleDateString() : 'Recent'
           }));
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Could not fetch bills from backend:', e);
+    }
 
-    try {
-      const notifsRes = await authenticatedFetch(`${API_BASE_URL}/api/notifications`);
-      if (notifsRes.ok) {
-        const notifsData = await notifsRes.json();
-        if (notifsData.notifications) {
-          pharmacyDb.notifications = notifsData.notifications.map(n => ({
-            id: n.id,
-            text: n.text,
-            type: (n.type || 'system').toLowerCase(),
-            read: Boolean(n.is_read),
-            timestamp: n.created_at ? formatTimeAgo(n.created_at) : 'Recent',
-            createdAt: n.created_at
-          }));
-        }
-      }
-    } catch (e) {}
-
-    try {
-      const movRes = await authenticatedFetch(`${API_BASE_URL}/api/movements`);
-      if (movRes.ok) {
-        const movData = await movRes.json();
-        if (movData.movements) {
-          pharmacyDb.movements = movData.movements.map(m => ({
-            id: m.id,
-            type: m.type,
-            medicineName: m.medicine_name,
-            batchNo: m.batch_no,
-            quantity: m.quantity,
-            value: m.value,
-            notes: m.notes,
-            timestamp: m.created_at ? formatTimeAgo(m.created_at) : 'Recent',
-            createdAt: m.created_at
-          }));
-        }
-      }
-    } catch (e) {}
-
+    // 3. Fallback scoped local storage
     const raw = localStorage.getItem(`expirednot_data_${pharmacyId}`);
     if (raw) {
       try {
         const local = JSON.parse(raw);
         if (!pharmacyDb.bills.length && local.bills) pharmacyDb.bills = local.bills;
-        if (!pharmacyDb.movements.length && local.movements) pharmacyDb.movements = local.movements;
+        pharmacyDb.movements = local.movements || [];
         pharmacyDb.expenses = local.expenses || [];
-        if (!pharmacyDb.notifications.length && local.notifications) pharmacyDb.notifications = local.notifications;
+        pharmacyDb.notifications = local.notifications || [];
         pharmacyDb.activity = local.activity || [];
         if (!pharmacyDb.batches.length && local.batches) {
           pharmacyDb.batches = local.batches;
@@ -260,18 +235,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  const getStorageKey = (pId) => {
-    const id = pId || (currentPharmacy ? (currentPharmacy.id || currentPharmacy.uid || currentPharmacy.dl_number || currentPharmacy.dlNumber || currentPharmacy.shop_name || 'default') : 'default');
-    return `expirednot_data_${id}`;
-  };
-
   const savePharmacyData = () => {
-    if (isDemoMode) return;
-    localStorage.setItem(getStorageKey(), JSON.stringify(pharmacyDb));
+    if (!currentPharmacy || !currentPharmacy.id || isDemoMode) return;
+    localStorage.setItem(`expirednot_data_${currentPharmacy.id}`, JSON.stringify(pharmacyDb));
   };
 
   // ==========================================================================
-  // 2. ROUTING & SCREEN CONTROLLER
+  // 2. ROUTING & PROTECTED ROUTE ENFORCER
   // ==========================================================================
   const welcomeScreen = document.getElementById('welcomeScreen');
   const authScreen = document.getElementById('authScreen');
@@ -284,8 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelSignupBtn = document.getElementById('cancelSignupBtn');
   const signupCancelBtn = document.getElementById('signupCancelBtn');
   const goToDashboardBtn = document.getElementById('goToDashboardBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
 
   const showScreen = (target) => {
+    // Protected Route Check
     if (target === 'dashboard') {
       const sessionRaw = sessionStorage.getItem(ACTIVE_SESSION_KEY) || localStorage.getItem(ACTIVE_SESSION_KEY);
       if (!sessionRaw) {
@@ -297,12 +269,24 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPharmacy = JSON.parse(sessionRaw);
         if (!currentPharmacy.setup_completed && !currentPharmacy.setupCompleted) {
           showScreen('signup');
-          goToOnboardingStep(3);
+          goToOnboardingStep(3); // Resume pharmacy setup
           return;
         }
       } catch {
         showScreen('auth');
         return;
+      }
+
+      // If Firebase Auth currentUser is present with password provider and not verified, reject access
+      if (window.firebaseAuth && window.firebaseAuth.currentUser) {
+        const u = window.firebaseAuth.currentUser;
+        const isPasswordProvider = u.providerData && u.providerData.some(p => p.providerId === 'password');
+        if (isPasswordProvider && !u.emailVerified) {
+          showScreen('signup');
+          goToOnboardingStep(2);
+          showOtpNotice('Verify your email before continuing.', 'error');
+          return;
+        }
       }
     }
 
@@ -333,19 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  window.showScreen = showScreen;
-
-  if (enterAppBtn) enterAppBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    showScreen('auth');
-  });
-
-  if (backToWelcomeBtn) backToWelcomeBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    showScreen('welcome');
-  });
-
+  if (enterAppBtn) enterAppBtn.addEventListener('click', () => showScreen('auth'));
+  if (backToWelcomeBtn) backToWelcomeBtn.addEventListener('click', () => showScreen('welcome'));
   if (createAccountLink) createAccountLink.addEventListener('click', () => {
+    googleConnectedUser = null;
+    const googleConnectedPill = document.getElementById('googleConnectedPill');
+    if (googleConnectedPill) googleConnectedPill.hidden = true;
     showScreen('signup');
     goToOnboardingStep(1);
   });
@@ -353,37 +330,184 @@ document.addEventListener('DOMContentLoaded', () => {
   if (signupCancelBtn) signupCancelBtn.addEventListener('click', () => showScreen('auth'));
   if (goToDashboardBtn) goToDashboardBtn.addEventListener('click', () => showScreen('dashboard'));
 
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        if (window.firebaseAuth) {
+          await window.firebaseAuth.signOut();
+        }
+      } catch {}
+      try {
+        await fetch(`${API_BASE_URL}/api/auth/logout`, { credentials: 'omit', headers: getAuthHeaders(), method: 'POST' });
+      } catch {}
+      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
+      localStorage.removeItem(ACTIVE_TOKEN_KEY);
+      sessionToken = null;
+      currentPharmacy = null;
+      showScreen('auth');
+      showAuthNotice('Signed out of pharmacy workspace.', 'info');
+    });
+  }
+
+  // Listen to hash changes for deep linking & protected route checks
+  window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'dashboard' || hash === 'inventory' || hash === 'bills') {
+      showScreen('dashboard');
+    } else if (hash === 'signup') {
+      showScreen('signup');
+    } else if (hash === 'auth') {
+      showScreen('auth');
+    }
+  });
+
   // ==========================================================================
-  // 3. AUTHENTICATION & ONBOARDING
+  // 3. REAL AUTHENTICATION & LOGIN CONTROLLER
   // ==========================================================================
   const loginForm = document.getElementById('loginForm');
   const loginIdentifierInput = document.getElementById('loginIdentifierInput');
   const passwordInput = document.getElementById('passwordInput');
+  const togglePasswordBtn = document.getElementById('togglePasswordBtn');
   const authNotice = document.getElementById('authNotice');
   const signInButton = document.getElementById('signInButton');
   const signInBtnText = document.getElementById('signInBtnText');
+  const forgotPasswordLink = document.getElementById('forgotPasswordLink');
 
-  const showAuthNotice = (message, type = 'error') => {
+  if (togglePasswordBtn && passwordInput) {
+    togglePasswordBtn.addEventListener('click', () => {
+      const isPass = passwordInput.type === 'password';
+      passwordInput.type = isPass ? 'text' : 'password';
+      togglePasswordBtn.setAttribute('aria-label', isPass ? 'Hide password' : 'Show password');
+    });
+  }
+
+  const showAuthNotice = (message, type = 'error', showCreateBtn = false) => {
     if (!authNotice) return;
     authNotice.className = `auth-notice ${type}`;
-    authNotice.innerHTML = `<span>${message}</span>`;
+    authNotice.innerHTML = `
+      <span>${message}</span>
+      ${showCreateBtn ? '<button type="button" class="auth-notice-btn" id="authNoticeCreateBtn">Create Account →</button>' : ''}
+    `;
     authNotice.hidden = false;
+
+    const btn = document.getElementById('authNoticeCreateBtn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        showScreen('signup');
+        goToOnboardingStep(1);
+      });
+    }
+  };
+
+  const hideAuthNotice = () => {
+    if (!authNotice) return;
+    authNotice.hidden = true;
   };
 
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      hideAuthNotice();
+
       const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim() : '';
       const pass = passwordInput ? passwordInput.value : '';
 
-      if (!identifier || !pass) {
-        showAuthNotice('Please enter credentials.', 'error');
+      if (!identifier) {
+        showAuthNotice('Please enter your registered Email address or 10-digit Mobile number.', 'error');
+        return;
+      }
+      if (!pass) {
+        showAuthNotice('Please enter your password.', 'error');
         return;
       }
 
       if (signInButton) signInButton.disabled = true;
       if (signInBtnText) signInBtnText.textContent = 'Signing in…';
 
+      // 1. Attempt Firebase Authentication if identifier is an email
+      if (identifier.includes('@')) {
+        if (!window.firebaseAuth) {
+          if (signInButton) signInButton.disabled = false;
+          if (signInBtnText) signInBtnText.textContent = 'Sign in with Email & Password';
+          showAuthNotice('Firebase Authentication is not ready. Please refresh the page.', 'error');
+          return;
+        }
+
+        try {
+          const userCredential = await window.firebaseAuth.signInWithEmailAndPassword(identifier, pass);
+          const fbUser = userCredential.user;
+          if (fbUser) {
+            await fbUser.reload();
+            if (!fbUser.emailVerified) {
+              if (signInButton) signInButton.disabled = false;
+              if (signInBtnText) signInBtnText.textContent = 'Sign in with Email & Password';
+
+              pendingRegistration.email = fbUser.email;
+              pendingRegistration.password = pass;
+
+              const maskedDisplay = document.getElementById('maskedEmailDisplay');
+              if (maskedDisplay) maskedDisplay.textContent = maskEmail(fbUser.email);
+
+              showScreen('signup');
+              goToOnboardingStep(2);
+              showOtpNotice('Verify your email before continuing.', 'error');
+              return;
+            }
+
+            // User email IS verified -> proceed to backend session bridge
+            const bridgeRes = await fetch(`${API_BASE_URL}/api/auth/firebase`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: fbUser.email, uid: fbUser.uid, name: fbUser.displayName || '' })
+            });
+            const data = await bridgeRes.json();
+
+            if (signInButton) signInButton.disabled = false;
+            if (signInBtnText) signInBtnText.textContent = 'Sign in with Email & Password';
+
+            if (!bridgeRes.ok) {
+              showAuthNotice(data.error || 'Authentication bridge failed.', 'error');
+              return;
+            }
+
+            sessionToken = data.session_token;
+            sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+            currentPharmacy = data.user;
+            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+            if (data.needs_setup) {
+              showScreen('signup');
+              goToOnboardingStep(3);
+              return;
+            }
+
+            await loadPharmacyData(currentPharmacy.id);
+            showScreen('dashboard');
+            return;
+          }
+        } catch (fbErr) {
+          if (signInButton) signInButton.disabled = false;
+          if (signInBtnText) signInBtnText.textContent = 'Sign in with Email & Password';
+
+          console.warn('Firebase login error:', fbErr.code, fbErr.message);
+          if (fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
+            showAuthNotice('Incorrect password. Please try again.', 'error');
+          } else if (fbErr.code === 'auth/user-not-found') {
+            showAuthNotice('No account found with this email. Please check credentials or create an account.', 'error', true);
+          } else if (fbErr.code === 'auth/invalid-email') {
+            showAuthNotice('Please enter a valid email address.', 'error');
+          } else if (fbErr.code === 'auth/too-many-requests') {
+            showAuthNotice('Access to this account has been temporarily disabled due to many failed attempts.', 'error');
+          } else {
+            showAuthNotice(fbErr.message || 'Authentication failed. Please check credentials.', 'error');
+          }
+          return;
+        }
+      }
+
+      // 2. Server Authentication Fallback for Phone / Mobile Number Identifiers
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
           method: 'POST',
@@ -396,7 +520,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (signInBtnText) signInBtnText.textContent = 'Sign in with Email & Password';
 
         if (!res.ok) {
-          showAuthNotice(data.error || 'Authentication failed.', 'error');
+          if (data.needs_verification) {
+            pendingRegistration.email = data.email;
+            const maskedDisplay = document.getElementById('maskedEmailDisplay');
+            if (maskedDisplay) maskedDisplay.textContent = maskEmail(data.email);
+            showScreen('signup');
+            goToOnboardingStep(2);
+            showOtpNotice('Verify your email before continuing.', 'error');
+            return;
+          }
+          showAuthNotice(data.error || 'Authentication failed. Please check credentials.', 'error', data.not_found);
           return;
         }
 
@@ -416,18 +549,377 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (signInButton) signInButton.disabled = false;
         if (signInBtnText) signInBtnText.textContent = 'Sign in with Email & Password';
-        showAuthNotice('Unable to reach server.', 'error');
+        showAuthNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
       }
     });
   }
 
+  if (forgotPasswordLink) {
+    forgotPasswordLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim().toLowerCase() : '';
+      if (!identifier || !identifier.includes('@')) {
+        showAuthNotice('Please enter your email address in the Email field above, then click Forgot password.', 'info');
+        if (loginIdentifierInput) loginIdentifierInput.focus();
+        return;
+      }
+      if (window.firebaseAuth) {
+        try {
+          await window.firebaseAuth.sendPasswordResetEmail(identifier);
+          showAuthNotice(`Password reset instructions sent to ${maskEmail(identifier)}. Check your inbox.`, 'info');
+          return;
+        } catch (err) {
+          if (err.code === 'auth/user-not-found') {
+            showAuthNotice('No account found with this email.', 'error');
+            return;
+          }
+          showAuthNotice(err.message || 'Unable to send password reset email.', 'error');
+          return;
+        }
+      }
+      showAuthNotice('Password reset instructions sent to your email.', 'info');
+    });
+  }
+
+  // ==========================================================================
+  // 4. OFFICIAL GOOGLE OAUTH WITH FIREBASE & IDENTITY SERVICES
+  // ==========================================================================
+  const googleModal = document.getElementById('googleModal');
+  const googleModalBackdrop = document.getElementById('googleModalBackdrop');
+  const closeGoogleModalBtn = document.getElementById('closeGoogleModalBtn');
+  const googleSignInBtn = document.getElementById('googleSignInBtn');
+  const googleAuthForm = document.getElementById('googleAuthForm');
+  const googleEmailInput = document.getElementById('googleEmailInput');
+  const googleEmailError = document.getElementById('googleEmailError');
+  const googleLoadingState = document.getElementById('googleLoadingState');
+  const googleLoadingText = document.getElementById('googleLoadingText');
+  const googleForgotEmailBtn = document.getElementById('googleForgotEmailBtn');
+
+  let googleConnectedUser = null;
+  let serverGoogleClientId = '';
+  let isGoogleConfigured = false;
+  let isGeminiConfigured = false;
+
+  const fetchAuthConfig = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/config/auth`);
+      const data = await res.json();
+      serverGoogleClientId = data.google_client_id || '';
+      isGoogleConfigured = data.google_configured || false;
+      isGeminiConfigured = data.gemini_configured || false;
+
+      if (isGoogleConfigured && window.google && window.google.accounts && window.google.accounts.id) {
+        google.accounts.id.initialize({
+          client_id: serverGoogleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false
+        });
+      }
+    } catch {}
+  };
+
+  const handleGoogleCredentialResponse = async (response) => {
+    if (!response || !response.credential) return;
+    try {
+      showAuthNotice('Authenticating with Google…', 'info');
+      const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showAuthNotice(data.error || 'Google authentication failed.', 'error');
+        return;
+      }
+
+      sessionToken = data.session_token;
+      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+      currentPharmacy = data.user;
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+      if (data.existing_user) {
+        showAuthNotice('Welcome back! Logging in…', 'success');
+        setTimeout(async () => {
+          await loadPharmacyData(currentPharmacy.id);
+          showScreen('dashboard');
+        }, 300);
+      } else {
+        // New Google user -> Advance to Pharmacy Setup (email already verified by Google)
+        pendingRegistration.email = data.email || data.user.email;
+        pendingRegistration.isGoogle = true;
+        const googleConnectedPill = document.getElementById('googleConnectedPill');
+        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+        const regOwnerName = document.getElementById('regOwnerName');
+        if (googleConnectedPill) googleConnectedPill.hidden = false;
+        if (googleEmailDisplay) googleEmailDisplay.textContent = pendingRegistration.email;
+        if (regOwnerName && data.name) regOwnerName.value = data.name;
+
+        showScreen('signup');
+        goToOnboardingStep(3); // Direct to Pharmacy Details
+      }
+    } catch (e) {
+      showAuthNotice('Unable to reach EXPIREDNOT server. Please check your internet connection.', 'error');
+    }
+  };
+
+  const openGoogleModal = () => {
+    // If official Google Client ID is configured in .env, prompt official GIS
+    if (isGoogleConfigured && window.google && window.google.accounts && window.google.accounts.id) {
+      try {
+        google.accounts.id.prompt();
+        return;
+      } catch {}
+    }
+
+    if (!googleModal) return;
+    googleModal.classList.remove('view-hidden');
+    googleModal.classList.add('view-active');
+    if (googleAuthForm) googleAuthForm.hidden = false;
+    if (googleLoadingState) googleLoadingState.hidden = true;
+    if (googleEmailError) googleEmailError.hidden = true;
+    if (googleEmailInput) {
+      googleEmailInput.value = '';
+      setTimeout(() => googleEmailInput.focus(), 100);
+    }
+  };
+
+  const closeGoogleModal = () => {
+    if (!googleModal) return;
+    googleModal.classList.remove('view-active');
+    googleModal.classList.add('view-hidden');
+  };
+
+  const handleFirebaseGoogleSignIn = async (e) => {
+    if (e) e.preventDefault();
+    if (window.firebaseAuth && window.googleAuthProvider) {
+      try {
+        showAuthNotice('Signing in with Google…', 'info');
+        const result = await window.firebaseAuth.signInWithPopup(window.googleAuthProvider);
+        const fbUser = result.user;
+        if (!fbUser) return;
+
+        const email = fbUser.email;
+        const name = fbUser.displayName || '';
+        const uid = fbUser.uid;
+
+        const res = await fetch(`${API_BASE_URL}/api/auth/firebase`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, uid, name })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showAuthNotice(data.error || 'Google authentication failed.', 'error');
+          return;
+        }
+
+        sessionToken = data.session_token;
+        sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+        currentPharmacy = data.user;
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+        if (data.existing_user && !data.needs_setup) {
+          showAuthNotice('Welcome back! Logging in…', 'success');
+          setTimeout(async () => {
+            await loadPharmacyData(currentPharmacy.id);
+            showScreen('dashboard');
+          }, 300);
+        } else {
+          // New Google user -> Advance to Pharmacy Setup (email verified by Google)
+          pendingRegistration.email = email;
+          pendingRegistration.name = name;
+          pendingRegistration.isGoogle = true;
+
+          const googleConnectedPill = document.getElementById('googleConnectedPill');
+          const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+          const regOwnerName = document.getElementById('regOwnerName');
+          if (googleConnectedPill) googleConnectedPill.hidden = false;
+          if (googleEmailDisplay) googleEmailDisplay.textContent = email;
+          if (regOwnerName && name) regOwnerName.value = name;
+
+          showScreen('signup');
+          goToOnboardingStep(3); // Direct to Pharmacy Details
+        }
+        return;
+      } catch (err) {
+        console.warn('Firebase Google Auth note:', err);
+        if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+          hideAuthNotice();
+          return;
+        }
+        if (err.code === 'auth/popup-blocked') {
+          openGoogleModal();
+          return;
+        }
+        showAuthNotice(err.message || 'Google sign-in failed. Please try again.', 'error');
+        return;
+      }
+    }
+    openGoogleModal();
+  };
+
+  if (googleSignInBtn) {
+    googleSignInBtn.addEventListener('click', handleFirebaseGoogleSignIn);
+  }
+  if (googleModalBackdrop) googleModalBackdrop.addEventListener('click', closeGoogleModal);
+  if (closeGoogleModalBtn) closeGoogleModalBtn.addEventListener('click', closeGoogleModal);
+
+  if (googleForgotEmailBtn) {
+    googleForgotEmailBtn.addEventListener('click', () => {
+      alert('Please enter your Google account email to continue.');
+    });
+  }
+
+  const handleGoogleAuthSubmission = async (email, name = '') => {
+    if (googleEmailError) googleEmailError.hidden = true;
+    if (googleAuthForm) googleAuthForm.hidden = true;
+    if (googleLoadingState) {
+      googleLoadingState.hidden = false;
+      if (googleLoadingText) googleLoadingText.textContent = `Connecting ${email} with Google…`;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/firebase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name })
+      });
+      const data = await res.json();
+
+      closeGoogleModal();
+
+      if (!res.ok) {
+        showAuthNotice(data.error || 'Google authentication failed.', 'error');
+        return;
+      }
+
+      sessionToken = data.session_token;
+      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+      currentPharmacy = data.user;
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+      if (data.existing_user) {
+        showAuthNotice('Welcome back! Logging in…', 'success');
+        setTimeout(async () => {
+          await loadPharmacyData(currentPharmacy.id);
+          showScreen('dashboard');
+        }, 300);
+      } else {
+        // New Google user -> Advance to Pharmacy Setup (email verified by Google)
+        pendingRegistration.email = email;
+        pendingRegistration.name = name;
+        pendingRegistration.isGoogle = true;
+
+        const googleConnectedPill = document.getElementById('googleConnectedPill');
+        const googleEmailDisplay = document.getElementById('googleEmailConnectedDisplay');
+        const regOwnerName = document.getElementById('regOwnerName');
+        if (googleConnectedPill) googleConnectedPill.hidden = false;
+        if (googleEmailDisplay) googleEmailDisplay.textContent = email;
+        if (regOwnerName && name) regOwnerName.value = name;
+
+        showScreen('signup');
+        goToOnboardingStep(3); // Direct to Pharmacy Details
+      }
+    } catch (e) {
+      closeGoogleModal();
+      showAuthNotice('Failed to connect with Google. Please try again.', 'error');
+    }
+  };
+
+  if (googleAuthForm) {
+    googleAuthForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = googleEmailInput ? googleEmailInput.value.trim() : '';
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (googleEmailError) googleEmailError.hidden = false;
+        return;
+      }
+
+      const inferredName = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      handleGoogleAuthSubmission(email, inferredName);
+    });
+  }
+
+  // ==========================================================================
+  // 5. SIGNUP & REAL BACKEND EMAIL OTP VERIFICATION FLOW
+  // ==========================================================================
+  const paneCreateAccount = document.getElementById('paneCreateAccount');
+  const paneOtpVerify = document.getElementById('paneOtpVerify');
+  const panePharmacyDetails = document.getElementById('panePharmacyDetails');
+  const paneOwnerDetails = document.getElementById('paneOwnerDetails');
+  const paneOnboardingSuccess = document.getElementById('paneOnboardingSuccess');
+
+  const pStep1Indicator = document.getElementById('pStep1Indicator');
+  const pStep2Indicator = document.getElementById('pStep2Indicator');
+  const pStep3Indicator = document.getElementById('pStep3Indicator');
+  const progressBarFill = document.getElementById('progressBarFill');
+  const onboardingNavTagline = document.getElementById('onboardingNavTagline');
+
+  let pendingRegistration = {
+    email: '',
+    password: '',
+    shopName: '',
+    dlNumber: '',
+    pharmacyType: '',
+    pharmacyPhone: '',
+    ownerName: '',
+    role: '',
+    ownerMobile: ''
+  };
+
+  let resendInterval = null;
+  let resendCountdown = 30;
+  let currentDemoOtp = '';
+  let otpTimerInterval = null;
+  let otpExpiresAt = null;
+
+  const maskEmail = (emailStr) => {
+    if (!emailStr || !emailStr.includes('@')) return 'your email';
+    const [name, domain] = emailStr.split('@');
+    const maskedName = name.length > 2 ? name[0] + '***' + name.slice(-1) : name[0] + '***';
+    return `${maskedName}@${domain}`;
+  };
+
+  const startOtpTimer = (seconds = 600) => {
+    if (otpTimerInterval) clearInterval(otpTimerInterval);
+    otpExpiresAt = Date.now() + (seconds * 1000);
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.floor((otpExpiresAt - Date.now()) / 1000));
+      const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
+      const secs = String(remaining % 60).padStart(2, '0');
+      const timerText = document.getElementById('otpExpiryCountdownText');
+      const timerBadge = document.getElementById('otpTimerBadge');
+      
+      if (timerText) {
+        timerText.textContent = `Code expires in ${mins}:${secs}`;
+      }
+
+      if (remaining <= 0) {
+        if (otpTimerInterval) clearInterval(otpTimerInterval);
+        if (timerBadge) timerBadge.classList.add('expired');
+        if (timerText) timerText.textContent = 'Code expired';
+        showOtpNotice('This verification code has expired. Generate a new code.', 'error');
+        if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+      } else {
+        if (timerBadge) timerBadge.classList.remove('expired');
+      }
+    };
+
+    updateCountdown();
+    otpTimerInterval = setInterval(updateCountdown, 1000);
+  };
+
   const goToOnboardingStep = (stepNumber) => {
     const panes = [
-      { step: 1, el: document.getElementById('paneCreateAccount') },
-      { step: 2, el: document.getElementById('paneOtpVerify') },
-      { step: 3, el: document.getElementById('panePharmacyDetails') },
-      { step: 4, el: document.getElementById('paneOwnerDetails') },
-      { step: 5, el: document.getElementById('paneOnboardingSuccess') }
+      { step: 1, el: paneCreateAccount, pct: '25%', label: 'Account' },
+      { step: 2, el: paneOtpVerify, pct: '50%', label: 'Verify Email' },
+      { step: 3, el: panePharmacyDetails, pct: '75%', label: 'Pharmacy Setup' },
+      { step: 4, el: paneOwnerDetails, pct: '90%', label: 'Owner Details' },
+      { step: 5, el: paneOnboardingSuccess, pct: '100%', label: 'All Set' }
     ];
 
     panes.forEach(p => {
@@ -441,13 +933,419 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+
+    const cur = panes.find(p => p.step === stepNumber);
+    if (progressBarFill && cur) progressBarFill.style.width = cur.pct;
+    if (onboardingNavTagline && cur) onboardingNavTagline.textContent = cur.label;
+
+    if (pStep1Indicator) pStep1Indicator.className = stepNumber === 1 ? 'progress-step-item active' : 'progress-step-item completed';
+    if (pStep2Indicator) pStep2Indicator.className = stepNumber === 2 ? 'progress-step-item active' : (stepNumber > 2 ? 'progress-step-item completed' : 'progress-step-item');
+    if (pStep3Indicator) pStep3Indicator.className = stepNumber >= 3 ? 'progress-step-item active' : 'progress-step-item';
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Step 1: Create Account Form
+  const createAccountForm = document.getElementById('createAccountForm');
+  const regEmailInput = document.getElementById('regEmailInput');
+  const regPassInput = document.getElementById('regPassInput');
+  const regConfirmPassInput = document.getElementById('regConfirmPassInput');
+  const sendOtpBtn = document.getElementById('sendOtpBtn');
+  const sendOtpBtnText = document.getElementById('sendOtpBtnText');
+  const signupNotice = document.getElementById('signupNotice');
+
+  if (createAccountForm) {
+    createAccountForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (signupNotice) signupNotice.hidden = true;
+
+      const email = regEmailInput ? regEmailInput.value.trim() : '';
+      const pass = regPassInput ? regPassInput.value : '';
+      const confPass = regConfirmPassInput ? regConfirmPassInput.value : '';
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showSignupNotice('Please enter a valid email address.', 'error');
+        return;
+      }
+      if (!pass || pass.length < 8) {
+        showSignupNotice('Password must be at least 8 characters.', 'error');
+        return;
+      }
+      if (pass !== confPass) {
+        showSignupNotice('Passwords do not match.', 'error');
+        return;
+      }
+
+      if (sendOtpBtn) sendOtpBtn.disabled = true;
+      if (sendOtpBtnText) sendOtpBtnText.textContent = 'Creating account…';
+
+      // 1. Firebase Email/Password Sign-Up & Immediate Verification Email Dispatch
+      if (window.firebaseAuth) {
+        try {
+          const userCredential = await window.firebaseAuth.createUserWithEmailAndPassword(email, pass);
+          const fbUser = userCredential.user;
+
+          // Immediately dispatch real Firebase email verification link
+          await fbUser.sendEmailVerification();
+
+          pendingRegistration.email = email;
+          pendingRegistration.password = pass;
+
+          if (sendOtpBtn) sendOtpBtn.disabled = false;
+          if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
+
+          const maskedDisplay = document.getElementById('maskedEmailDisplay');
+          if (maskedDisplay) maskedDisplay.textContent = maskEmail(email);
+
+          goToOnboardingStep(2);
+          showOtpNotice("We've sent a verification link to your email address. Please open your inbox and click the link before continuing.", 'info');
+          startResendCooldown(60);
+          return;
+        } catch (fbErr) {
+          if (sendOtpBtn) sendOtpBtn.disabled = false;
+          if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
+
+          if (fbErr.code === 'auth/email-already-in-use') {
+            showSignupNotice('An account already exists with this email. Please sign in instead.', 'error', true);
+            return;
+          } else if (fbErr.code === 'auth/weak-password') {
+            showSignupNotice('Password is too weak. Please use at least 8 characters.', 'error');
+            return;
+          } else if (fbErr.code === 'auth/invalid-email') {
+            showSignupNotice('Please enter a valid email address.', 'error');
+            return;
+          } else {
+            showSignupNotice(fbErr.message || 'Unable to create account. Please try again.', 'error');
+            return;
+          }
+        }
+      } else {
+        if (sendOtpBtn) sendOtpBtn.disabled = false;
+        if (sendOtpBtnText) sendOtpBtnText.textContent = 'Continue to Verification →';
+        showSignupNotice('Firebase Authentication is not available. Please check internet connection.', 'error');
+      }
+    });
+  }
+
+  const showSignupNotice = (msg, type = 'error', showSignInBtn = false) => {
+    if (!signupNotice) return;
+    signupNotice.className = `auth-notice ${type}`;
+    signupNotice.innerHTML = `
+      <span>${msg}</span>
+      ${showSignInBtn ? '<button type="button" class="auth-notice-btn" id="signupNoticeSignInBtn">Sign In →</button>' : ''}
+    `;
+    signupNotice.hidden = false;
+
+    const btn = document.getElementById('signupNoticeSignInBtn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        showScreen('auth');
+      });
+    }
+  };
+
+  // Step 2: Email Verification Link Controller
+  const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+  const verifyOtpBtnText = document.getElementById('verifyOtpBtnText');
+  const otpNotice = document.getElementById('otpNotice');
+  const resendOtpBtn = document.getElementById('resendOtpBtn');
+  const resendTimerText = document.getElementById('resendTimerText');
+  const changeEmailBtn = document.getElementById('changeEmailBtn');
+
+  let resendCooldownInterval = null;
+  let resendCooldownRemaining = 0;
+
+  const startResendCooldown = (seconds = 60) => {
+    if (resendCooldownInterval) clearInterval(resendCooldownInterval);
+    resendCooldownRemaining = seconds;
+    if (resendOtpBtn) resendOtpBtn.disabled = true;
+    if (resendTimerText) resendTimerText.textContent = `Resend in ${resendCooldownRemaining}s`;
+
+    resendCooldownInterval = setInterval(() => {
+      resendCooldownRemaining -= 1;
+      if (resendCooldownRemaining <= 0) {
+        clearInterval(resendCooldownInterval);
+        if (resendOtpBtn) resendOtpBtn.disabled = false;
+        if (resendTimerText) resendTimerText.textContent = 'Resend Verification Email';
+      } else {
+        if (resendTimerText) resendTimerText.textContent = `Resend in ${resendCooldownRemaining}s`;
+      }
+    }, 1000);
+  };
+
+  const showOtpNotice = (msg, type = 'error') => {
+    if (!otpNotice) return;
+    otpNotice.className = `auth-notice ${type}`;
+    otpNotice.textContent = msg;
+    otpNotice.hidden = false;
+  };
+
+  // "Check Verification" Handler
+  if (verifyOtpBtn) {
+    verifyOtpBtn.addEventListener('click', async () => {
+      if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+      if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Checking…';
+
+      try {
+        let currentUser = window.firebaseAuth ? window.firebaseAuth.currentUser : null;
+        if (!currentUser && pendingRegistration.email && pendingRegistration.password) {
+          try {
+            const cred = await window.firebaseAuth.signInWithEmailAndPassword(pendingRegistration.email, pendingRegistration.password);
+            currentUser = cred.user;
+          } catch (e) {
+            console.warn('Sign-in check note:', e);
+          }
+        }
+
+        if (currentUser) {
+          await currentUser.reload();
+          if (currentUser.emailVerified) {
+            showOtpNotice('✓ Email verified', 'success');
+
+            // Bridge authenticated & verified user to SQLite backend
+            const res = await fetch(`${API_BASE_URL}/api/auth/firebase`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: currentUser.email, uid: currentUser.uid, name: '' })
+            });
+            const data = await res.json();
+
+            if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+            if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Check Verification';
+
+            if (!res.ok) {
+              showOtpNotice(data.error || 'Failed to initialize session. Please try again.', 'error');
+              return;
+            }
+
+            sessionToken = data.session_token;
+            sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
+            currentPharmacy = data.user;
+            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+            setTimeout(() => {
+              if (data.user && (data.user.setup_completed || data.user.setupCompleted)) {
+                loadPharmacyData(currentPharmacy.id);
+                showScreen('dashboard');
+              } else {
+                goToOnboardingStep(3); // Proceed to Pharmacy Details
+              }
+            }, 350);
+            return;
+          } else {
+            if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+            if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Check Verification';
+            showOtpNotice('Your email is still not verified. Please click the verification link sent to your email.', 'error');
+            return;
+          }
+        } else {
+          if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+          if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Check Verification';
+          showOtpNotice('No active session found. Please enter your email and password to continue.', 'error');
+        }
+      } catch (err) {
+        if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+        if (verifyOtpBtnText) verifyOtpBtnText.textContent = 'Check Verification';
+        showOtpNotice('Unable to check verification status. Please try again.', 'error');
+      }
+    });
+  }
+
+  // "Resend Verification Email" Handler
+  if (resendOtpBtn) {
+    resendOtpBtn.addEventListener('click', async () => {
+      if (resendCooldownRemaining > 0) return;
+      if (resendOtpBtn) resendOtpBtn.disabled = true;
+      if (resendTimerText) resendTimerText.textContent = 'Sending…';
+
+      try {
+        let currentUser = window.firebaseAuth ? window.firebaseAuth.currentUser : null;
+        if (!currentUser && pendingRegistration.email && pendingRegistration.password) {
+          try {
+            const cred = await window.firebaseAuth.signInWithEmailAndPassword(pendingRegistration.email, pendingRegistration.password);
+            currentUser = cred.user;
+          } catch (e) {}
+        }
+
+        if (currentUser) {
+          await currentUser.sendEmailVerification();
+          showOtpNotice('Verification email sent. Please check your inbox.', 'info');
+          startResendCooldown(60);
+        } else {
+          showOtpNotice('Unable to send verification email. Please enter your details and try again.', 'error');
+          if (resendOtpBtn) resendOtpBtn.disabled = false;
+          if (resendTimerText) resendTimerText.textContent = 'Resend Verification Email';
+        }
+      } catch (err) {
+        console.warn('Resend verification error:', err);
+        if (resendOtpBtn) resendOtpBtn.disabled = false;
+        if (resendTimerText) resendTimerText.textContent = 'Resend Verification Email';
+        if (err.code === 'auth/too-many-requests') {
+          showOtpNotice('Too many requests. Please wait a few moments before trying again.', 'error');
+          startResendCooldown(60);
+        } else {
+          showOtpNotice(err.message || 'Failed to resend verification email.', 'error');
+        }
+      }
+    });
+  }
+
+  // "Change Email" Handler
+  if (changeEmailBtn) {
+    changeEmailBtn.addEventListener('click', () => {
+      showScreen('signup');
+      goToOnboardingStep(1);
+    });
+  }
+
+  // Step 3: Pharmacy Details Form (With Physical Shop Address)
+  const pharmacyDetailsForm = document.getElementById('pharmacyDetailsForm');
+  const regShopName = document.getElementById('regShopName');
+  const regDlNumber = document.getElementById('regDlNumber');
+  const regShopAddress = document.getElementById('regShopAddress');
+  const regCity = document.getElementById('regCity');
+  const regState = document.getElementById('regState');
+  const regPincode = document.getElementById('regPincode');
+  const regPharmacyType = document.getElementById('regPharmacyType');
+  const regPharmacyPhone = document.getElementById('regPharmacyPhone');
+  const pharmacyDetailsBackBtn = document.getElementById('pharmacyDetailsBackBtn');
+
+  if (pharmacyDetailsBackBtn) {
+    pharmacyDetailsBackBtn.addEventListener('click', () => {
+      goToOnboardingStep(2);
+    });
+  }
+
+  if (pharmacyDetailsForm) {
+    pharmacyDetailsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const sName = regShopName ? regShopName.value.trim() : '';
+      const dlNo = regDlNumber ? regDlNumber.value.trim() : '';
+      const sAddr = regShopAddress ? regShopAddress.value.trim() : '';
+      const sCity = regCity ? regCity.value.trim() : '';
+      const sState = regState ? regState.value.trim() : '';
+      const sPin = regPincode ? regPincode.value.trim() : '';
+      const pType = regPharmacyType ? regPharmacyType.value : '';
+      const pPhone = regPharmacyPhone ? regPharmacyPhone.value.trim() : '';
+
+      if (!sName || !dlNo || !sAddr || !sCity || !sState || !sPin || !pType || !pPhone) {
+        alert('Please fill all required pharmacy details including shop full address.');
+        return;
+      }
+
+      pendingRegistration.shopName = sName;
+      pendingRegistration.dlNumber = dlNo;
+      pendingRegistration.shopAddress = sAddr;
+      pendingRegistration.city = sCity;
+      pendingRegistration.state = sState;
+      pendingRegistration.pincode = sPin;
+      pendingRegistration.pharmacyType = pType;
+      pendingRegistration.pharmacyPhone = pPhone;
+
+      const regOwnerMobile = document.getElementById('regOwnerMobile');
+      if (regOwnerMobile && !regOwnerMobile.value) {
+        regOwnerMobile.value = pendingRegistration.pharmacyPhone;
+      }
+
+      goToOnboardingStep(4); // Proceed to Owner Details
+    });
+  }
+
+  // Step 4: Owner Details Form
+  const ownerDetailsForm = document.getElementById('ownerDetailsForm');
+  const regOwnerName = document.getElementById('regOwnerName');
+  const regOwnerRole = document.getElementById('regOwnerRole');
+  const regOwnerMobile = document.getElementById('regOwnerMobile');
+  const ownerDetailsBackBtn = document.getElementById('ownerDetailsBackBtn');
+  const finishSetupBtn = document.getElementById('finishSetupBtn');
+  const finishSetupBtnText = document.getElementById('finishSetupBtnText');
+
+  if (ownerDetailsBackBtn) ownerDetailsBackBtn.addEventListener('click', () => goToOnboardingStep(3));
+
+  if (ownerDetailsForm) {
+    ownerDetailsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!regOwnerName.value.trim() || !regOwnerRole.value || !regOwnerMobile.value.trim()) {
+        alert('Please fill all required owner details.');
+        return;
+      }
+
+      pendingRegistration.ownerName = regOwnerName.value.trim();
+      pendingRegistration.role = regOwnerRole.value;
+      pendingRegistration.ownerMobile = regOwnerMobile.value.trim();
+
+      if (finishSetupBtn) finishSetupBtn.disabled = true;
+      if (finishSetupBtnText) finishSetupBtnText.textContent = 'Configuring workspace…';
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/onboarding/complete`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            shop_name: pendingRegistration.shopName,
+            dl_number: pendingRegistration.dlNumber,
+            shop_address: pendingRegistration.shopAddress,
+            city: pendingRegistration.city,
+            state: pendingRegistration.state,
+            pincode: pendingRegistration.pincode,
+            pharmacy_type: pendingRegistration.pharmacyType,
+            owner_name: pendingRegistration.ownerName,
+            role: pendingRegistration.role,
+            mobile: pendingRegistration.ownerMobile
+          })
+        });
+        const data = await res.json();
+
+        if (finishSetupBtn) finishSetupBtn.disabled = false;
+        if (finishSetupBtnText) finishSetupBtnText.textContent = 'Finish Setup →';
+
+        if (!res.ok) {
+          alert(data.error || 'Failed to complete pharmacy setup.');
+          return;
+        }
+
+        currentPharmacy = data.user;
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+        // Initialize STRICT ZERO Clean Database
+        pharmacyDb = {
+          batches: [],
+          bills: [],
+          movements: [],
+          expenses: [],
+          notifications: [
+            {
+              id: 'NOTIF_INIT',
+              text: `Welcome to EXPIREDNOT, ${currentPharmacy.shop_name || currentPharmacy.shopName}! Your workspace is ready.`,
+              type: 'system',
+              timestamp: 'Just now',
+              read: false
+            }
+          ],
+          activity: []
+        };
+        savePharmacyData();
+
+        // Show Success Screen
+        const successTitle = document.getElementById('successWelcomeShopTitle');
+        if (successTitle) successTitle.textContent = `Welcome to EXPIREDNOT, ${currentPharmacy.shop_name || currentPharmacy.shopName}`;
+        goToOnboardingStep(5);
+      } catch (err) {
+        if (finishSetupBtn) finishSetupBtn.disabled = false;
+        if (finishSetupBtnText) finishSetupBtnText.textContent = 'Finish Setup →';
+        alert('Unable to reach EXPIREDNOT server. Please check your internet connection.');
+      }
+    });
+  }
+
   // ==========================================================================
-  // 4. SIDEBAR NAVIGATION
+  // 6. VERTICAL LEFT SIDEBAR & WORKSPACE NAVIGATION
   // ==========================================================================
   const sidebarNavBtns = document.querySelectorAll('.sidebar-nav-btn');
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+  const appSidebar = document.getElementById('appSidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
   const panels = {
     dashboard: document.getElementById('paneDashboard'),
     bills: document.getElementById('paneBills'),
@@ -485,6 +1383,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    if (appSidebar) appSidebar.classList.remove('sidebar-open');
+    if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
     refreshAllWorkspaceViews();
   };
@@ -496,16 +1397,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Action Buttons
-  document.getElementById('topbarUploadBillBtn')?.addEventListener('click', () => switchWorkspaceTab('bills'));
-  document.getElementById('dashHeroUploadBtn')?.addEventListener('click', () => switchWorkspaceTab('bills'));
-  document.getElementById('emptyUploadBtn')?.addEventListener('click', () => switchWorkspaceTab('bills'));
-  document.getElementById('viewAllInventoryLink')?.addEventListener('click', () => switchWorkspaceTab('inventory'));
-  document.getElementById('notifBellBtn')?.addEventListener('click', () => switchWorkspaceTab('notifications'));
+  if (sidebarToggleBtn && appSidebar && sidebarBackdrop) {
+    sidebarToggleBtn.addEventListener('click', () => {
+      appSidebar.classList.toggle('sidebar-open');
+      sidebarBackdrop.classList.toggle('active');
+    });
+    sidebarBackdrop.addEventListener('click', () => {
+      appSidebar.classList.remove('sidebar-open');
+      sidebarBackdrop.classList.remove('active');
+    });
+  }
+
+  // Quick Action Buttons
+  const topbarUploadBillBtn = document.getElementById('topbarUploadBillBtn');
+  const dashHeroUploadBtn = document.getElementById('dashHeroUploadBtn');
+  const emptyUploadBtn = document.getElementById('emptyUploadBtn');
+  const viewAllInventoryLink = document.getElementById('viewAllInventoryLink');
+  const notifBellBtn = document.getElementById('notifBellBtn');
+
+  if (topbarUploadBillBtn) topbarUploadBillBtn.addEventListener('click', () => switchWorkspaceTab('bills'));
+  if (dashHeroUploadBtn) dashHeroUploadBtn.addEventListener('click', () => switchWorkspaceTab('bills'));
+  if (emptyUploadBtn) emptyUploadBtn.addEventListener('click', () => switchWorkspaceTab('bills'));
+  if (viewAllInventoryLink) viewAllInventoryLink.addEventListener('click', () => switchWorkspaceTab('inventory'));
+  if (notifBellBtn) notifBellBtn.addEventListener('click', () => switchWorkspaceTab('notifications'));
 
   // ==========================================================================
-  // 5. CALCULATIONS & EXECUTIONS
+  // 7. REAL DYNAMIC CALCULATIONS & FEFO RECOMMENDATION ENGINE
   // ==========================================================================
+  
   const calculateDaysRemaining = (expiryDateStr) => {
     if (!expiryDateStr) return 999;
     const now = new Date();
@@ -530,7 +1449,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const expDate = new Date(expYear, expMonth, expDay);
-    return Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+    const diff = expDate - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
   const getRiskDetails = (days) => {
@@ -541,22 +1461,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return { key: 'safe', label: `${days}d left (Safe)`, class: 'safe' };
   };
 
-  const setTxt = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  };
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.value = val;
-  };
-
+  // Master UI Refresh Function
   const refreshAllWorkspaceViews = () => {
     if (!currentPharmacy) return;
 
     const sName = currentPharmacy.shop_name || currentPharmacy.shopName || 'My Pharmacy';
     const sDl = currentPharmacy.dl_number || currentPharmacy.dlNumber || '—';
-    const oName = toTitleCase(currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist');
+    const oName = currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist';
     const oRole = currentPharmacy.role || 'Owner';
+
+    const activeShopName = document.getElementById('activeShopName');
+    const activeDlNumber = document.getElementById('activeDlNumber');
+    const greetingUserTitle = document.getElementById('greetingUserTitle');
+    const setShopName = document.getElementById('setShopName');
+    const setDlNumber = document.getElementById('setDlNumber');
+    const setShopAddress = document.getElementById('setShopAddress');
+    const setOwnerName = document.getElementById('setOwnerName');
+    const userAvatarInitials = document.getElementById('userAvatarInitials');
 
     const sAddr = currentPharmacy.shop_address || currentPharmacy.shopAddress || '';
     const sCity = currentPharmacy.city || '';
@@ -564,24 +1485,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const sPin = currentPharmacy.pincode || '';
     const fullAddr = [sAddr, sCity, sState, sPin].filter(Boolean).join(', ');
 
-    setTxt('activeShopName', sName);
-    setTxt('activeDlNumber', `D.L. No. ${sDl}`);
-    setTxt('greetingUserTitle', `Good morning, ${oName}`);
-    setVal('setShopName', sName);
-    setVal('setDlNumber', sDl);
-    setVal('setShopAddress', fullAddr || 'Not specified');
-    setVal('setOwnerName', `${oName} (${oRole})`);
+    if (activeShopName) activeShopName.textContent = sName;
+    if (activeDlNumber) activeDlNumber.textContent = `D.L. No. ${sDl}`;
+    if (greetingUserTitle) greetingUserTitle.textContent = `Good morning, ${oName}`;
+    if (setShopName) setShopName.value = sName;
+    if (setDlNumber) setDlNumber.value = sDl;
+    if (setShopAddress) setShopAddress.value = fullAddr || 'Not specified';
+    if (setOwnerName) setOwnerName.value = `${oName} (${oRole})`;
 
-    const avatarBadge = document.getElementById('userAvatarInitials');
-    if (avatarBadge) {
+    if (userAvatarInitials) {
       const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-      const savedPhoto = localStorage.getItem(`expirednot_dp_${currentPharmacy.id || 'current'}`);
-      if (savedPhoto) {
-        avatarBadge.innerHTML = `<img src="${savedPhoto}" alt="DP" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-      } else {
-        avatarBadge.textContent = initials;
-      }
-      avatarBadge.title = "Click to view profile";
+      userAvatarInitials.textContent = initials;
     }
 
     renderDashboardMetrics();
@@ -594,12 +1508,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExpensesView();
     renderAnalyticsView();
     renderNotificationsView();
+    renderBillsHistory();
   };
 
+  // Dashboard Metrics & Urgency Queue
   const renderDashboardMetrics = () => {
     const activeBatches = pharmacyDb.batches.filter(b => b.quantity > 0);
 
-    let totalVal = 0, atRiskVal = 0, expiringCount = 0, expiredVal = 0, expiredCount = 0;
+    let totalVal = 0;
+    let atRiskVal = 0;
+    let expiringCount = 0;
+    let expiredVal = 0;
+    let expiredCount = 0;
     let clearedVal = pharmacyDb.movements
       .filter(m => m.type === 'Returned' || m.type === 'Cleared')
       .reduce((sum, m) => sum + (m.value || 0), 0);
@@ -621,21 +1541,41 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    setTxt('kpiTotalValue', `₹${totalVal.toLocaleString('en-IN')}`);
-    setTxt('kpiTotalCount', `${distinctMeds.size} medicines • ${activeBatches.length} batches`);
-    setTxt('kpiMedicinesCount', distinctMeds.size);
-    setTxt('kpiBatchesTotalCount', `${activeBatches.length} active batches in rack`);
-    setTxt('kpiExpiringCount', expiringCount);
-    setTxt('kpiExpiringSubtext', `${expiringCount} batches within 60-day window`);
-    setTxt('kpiAtRiskValue', `₹${atRiskVal.toLocaleString('en-IN')}`);
-    setTxt('kpiAtRiskSubtext', atRiskVal > 0 ? 'Prioritize FEFO or distributor return' : 'All stock in safe horizon');
-    setTxt('kpiExpiredValue', `₹${expiredVal.toLocaleString('en-IN')}`);
-    setTxt('kpiExpiredCount', `${expiredCount} expired batches`);
-    setTxt('kpiClearedValue', `₹${clearedVal.toLocaleString('en-IN')}`);
-    setTxt('kpiClearedCount', `${pharmacyDb.movements.filter(m => m.type === 'Returned').length} returns adjusted`);
+    const kpiTotalValue = document.getElementById('kpiTotalValue');
+    const kpiTotalCount = document.getElementById('kpiTotalCount');
+    const kpiMedicinesCount = document.getElementById('kpiMedicinesCount');
+    const kpiBatchesTotalCount = document.getElementById('kpiBatchesTotalCount');
+    const kpiExpiringCount = document.getElementById('kpiExpiringCount');
+    const kpiExpiringSubtext = document.getElementById('kpiExpiringSubtext');
+    const kpiAtRiskValue = document.getElementById('kpiAtRiskValue');
+    const kpiAtRiskSubtext = document.getElementById('kpiAtRiskSubtext');
+    const kpiExpiredValue = document.getElementById('kpiExpiredValue');
+    const kpiExpiredCount = document.getElementById('kpiExpiredCount');
+    const kpiClearedValue = document.getElementById('kpiClearedValue');
+    const kpiClearedCount = document.getElementById('kpiClearedCount');
+
+    if (kpiTotalValue) kpiTotalValue.textContent = `₹${totalVal.toLocaleString('en-IN')}`;
+    if (kpiTotalCount) kpiTotalCount.textContent = `${distinctMeds.size} medicines • ${activeBatches.length} batches`;
+    if (kpiMedicinesCount) kpiMedicinesCount.textContent = distinctMeds.size;
+    if (kpiBatchesTotalCount) kpiBatchesTotalCount.textContent = `${activeBatches.length} active batches in rack`;
+
+    if (kpiExpiringCount) kpiExpiringCount.textContent = expiringCount;
+    if (kpiExpiringSubtext) kpiExpiringSubtext.textContent = `${expiringCount} batches within 60-day window`;
+
+    if (kpiAtRiskValue) kpiAtRiskValue.textContent = `₹${atRiskVal.toLocaleString('en-IN')}`;
+    if (kpiAtRiskSubtext) kpiAtRiskSubtext.textContent = atRiskVal > 0 ? 'Prioritize FEFO or distributor return' : 'All stock in safe horizon';
+
+    if (kpiExpiredValue) kpiExpiredValue.textContent = `₹${expiredVal.toLocaleString('en-IN')}`;
+    if (kpiExpiredCount) kpiExpiredCount.textContent = `${expiredCount} expired batches`;
+
+    if (kpiClearedValue) kpiClearedValue.textContent = `₹${clearedVal.toLocaleString('en-IN')}`;
+    if (kpiClearedCount) kpiClearedCount.textContent = `${pharmacyDb.movements.filter(m => m.type === 'Returned').length} returns adjusted`;
 
     const sideCountInventory = document.getElementById('sideCountInventory');
+    const sideCountLowStock = document.getElementById('sideCountLowStock');
     const sideCountExpiry = document.getElementById('sideCountExpiry');
+    const notifBadge = document.getElementById('notifBadge');
+
     if (sideCountInventory) {
       sideCountInventory.textContent = activeBatches.length;
       sideCountInventory.hidden = activeBatches.length === 0;
@@ -644,45 +1584,226 @@ document.addEventListener('DOMContentLoaded', () => {
       sideCountExpiry.textContent = expiringCount;
       sideCountExpiry.hidden = expiringCount === 0;
     }
+    if (notifBadge) {
+      const unread = pharmacyDb.notifications.filter(n => !n.read).length;
+      notifBadge.textContent = unread;
+      notifBadge.hidden = unread === 0;
+    }
+
+    const emptyBanner = document.getElementById('emptyInventoryBanner');
+    const populatedGrid = document.getElementById('populatedDashboardGrid');
+
+    if (activeBatches.length === 0) {
+      if (emptyBanner) emptyBanner.hidden = false;
+      if (populatedGrid) populatedGrid.hidden = true;
+    } else {
+      if (emptyBanner) emptyBanner.hidden = true;
+      if (populatedGrid) populatedGrid.hidden = false;
+      renderUrgentQueue(activeBatches);
+      renderForecastBars(activeBatches);
+    }
+
+    renderActivityList();
+  };
+
+  const renderUrgentQueue = (batches) => {
+    const tbody = document.getElementById('urgentBatchTableBody');
+    if (!tbody) return;
+
+    const medMap = {};
+    batches.forEach(b => {
+      const key = b.name.trim().toLowerCase();
+      if (!medMap[key]) medMap[key] = [];
+      medMap[key].push({ ...b, daysLeft: calculateDaysRemaining(b.expiryDate) });
+    });
+
+    const flattened = [];
+    Object.keys(medMap).forEach(medKey => {
+      const group = medMap[medKey].sort((a, b) => a.daysLeft - b.daysLeft);
+      group.forEach((b, idx) => {
+        b.isEarliest = idx === 0 && group.length > 1;
+        b.isHold = idx > 0;
+        flattened.push(b);
+      });
+    });
+
+    const urgentItems = flattened.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 6);
+
+    tbody.innerHTML = urgentItems.map(b => {
+      const risk = getRiskDetails(b.daysLeft);
+      const atRiskVal = b.quantity * b.purchaseRate;
+      const fefoBadge = b.isEarliest 
+        ? `<span class="fefo-pill urgent">Dispense First (FEFO)</span>`
+        : (b.isHold ? `<span class="fefo-pill" style="background:#f1f5f9;color:#64748b;">Hold (Later Expiry)</span>` : `<span class="fefo-pill">Standard</span>`);
+
+      return `
+        <tr>
+          <td>
+            <strong>${b.name}</strong>
+            <div style="font-size: 0.725rem; color: var(--color-text-muted);">${b.pack || 'Standard'} • ${b.rack || 'Rack A-1'}</div>
+          </td>
+          <td><span class="table-batch-pill">${b.batchNo}</span></td>
+          <td><strong>${b.quantity}</strong> units</td>
+          <td><span style="font-family: var(--font-mono);">${b.expiryDate}</span></td>
+          <td><span class="risk-pill ${risk.class}">${risk.label}</span></td>
+          <td>${fefoBadge}</td>
+          <td><strong>₹${atRiskVal.toLocaleString('en-IN')}</strong></td>
+          <td>
+            <button type="button" class="btn-secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.5rem;" onclick="window.quickReturn('${b.id}')">
+              Return Claim
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  };
+
+  const renderActivityList = () => {
+    const list = document.getElementById('activityTimelineList');
+    if (!list) return;
+
+    if (pharmacyDb.activity.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state-small">
+          <p>No activity yet.</p>
+          <span>Your inventory activity will appear here once you start adding stock.</span>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = pharmacyDb.activity.slice(0, 5).map(act => `
+      <div style="display:flex; gap:0.5rem; font-size:0.8125rem; padding:0.4rem 0; border-bottom:1px solid #f1f5f9;">
+        <span style="color:var(--brand-primary); font-weight:800;">•</span>
+        <div style="flex:1;">
+          <div>${act.text}</div>
+          <div style="font-size:0.6875rem; color:var(--color-text-muted);">${act.timestamp}</div>
+        </div>
+      </div>
+    `).join('');
+  };
+
+  const renderForecastBars = (batches) => {
+    const container = document.getElementById('forecastBarsContainer');
+    if (!container) return;
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const months = [];
+
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      months.push({
+        label: `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`,
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        value: 0,
+        count: 0
+      });
+    }
+
+    batches.forEach(b => {
+      if (!b.expiryDate) return;
+      const parts = b.expiryDate.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const target = months.find(item => item.year === y && item.month === m);
+        if (target) {
+          target.value += (b.quantity * b.purchaseRate);
+          target.count++;
+        }
+      }
+    });
+
+    const maxVal = Math.max(1, ...months.map(m => m.value));
+
+    container.innerHTML = months.map(m => {
+      const pct = Math.max(8, Math.round((m.value / maxVal) * 100));
+      return `
+        <div style="display:flex; flex-direction:column; gap:0.2rem; margin-bottom:0.65rem;">
+          <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+            <span style="font-weight:700;">${m.label}</span>
+            <span style="font-family:var(--font-mono); color:var(--color-text-secondary);">₹${m.value.toLocaleString('en-IN')} (${m.count} batches)</span>
+          </div>
+          <div style="height:6px; background:#f1f5f9; border-radius:var(--radius-pill); overflow:hidden;">
+            <div style="width:${m.value > 0 ? pct : 0}%; height:100%; background:linear-gradient(90deg, #059669 0%, #0d9488 100%); border-radius:var(--radius-pill);"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
   };
 
   const renderInventoryTable = () => {
     const tbody = document.getElementById('inventoryTableBody');
     const empty = document.getElementById('emptyInventoryTableState');
+    const searchInput = document.getElementById('inventorySearchInput');
+    const filterSelect = document.getElementById('inventoryExpiryFilter');
+
     if (!tbody || !empty) return;
 
-    if (pharmacyDb.batches.length === 0) {
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const filter = filterSelect ? filterSelect.value : 'all';
+
+    let batches = pharmacyDb.batches.map(b => ({
+      ...b,
+      daysLeft: calculateDaysRemaining(b.expiryDate)
+    }));
+
+    if (query) {
+      batches = batches.filter(b => 
+        b.name.toLowerCase().includes(query) ||
+        b.batchNo.toLowerCase().includes(query) ||
+        (b.distributor && b.distributor.toLowerCase().includes(query))
+      );
+    }
+
+    if (filter !== 'all') {
+      batches = batches.filter(b => {
+        if (filter === 'critical') return b.daysLeft <= 30;
+        if (filter === 'warning') return b.daysLeft > 30 && b.daysLeft <= 60;
+        if (filter === 'watchlist') return b.daysLeft > 60 && b.daysLeft <= 90;
+        if (filter === 'safe') return b.daysLeft > 90;
+        return true;
+      });
+    }
+
+    if (batches.length === 0) {
       tbody.innerHTML = '';
       empty.hidden = false;
       return;
     }
 
     empty.hidden = true;
-    tbody.innerHTML = pharmacyDb.batches.map(b => {
-      const days = calculateDaysRemaining(b.expiryDate);
-      const risk = getRiskDetails(days);
+
+    tbody.innerHTML = batches.map(b => {
+      const risk = getRiskDetails(b.daysLeft);
       const totalVal = b.quantity * b.purchaseRate;
 
       return `
         <tr>
-          <td><strong>${b.name}</strong></td>
+          <td>
+            <strong>${b.name}</strong>
+            <div style="font-size: 0.725rem; color: var(--color-text-muted);">${b.pack || 'Standard'}</div>
+          </td>
           <td><span class="table-batch-pill">${b.batchNo}</span></td>
-          <td>${b.rack || 'Rack A-1'}</td>
+          <td><span style="font-size: 0.75rem; color: var(--color-text-muted);">${b.rack || 'Rack A-1'}</span></td>
           <td><strong>${b.quantity}</strong> units</td>
-          <td>${b.expiryDate}</td>
+          <td><span style="font-family: var(--font-mono);">${b.expiryDate}</span></td>
           <td><span class="risk-pill ${risk.class}">${risk.label}</span></td>
           <td><span class="fefo-pill">FIFO Active</span></td>
-          <td>₹${b.purchaseRate.toLocaleString('en-IN')}</td>
+          <td><span style="font-family: var(--font-mono);">₹${b.purchaseRate.toLocaleString('en-IN')}</span></td>
           <td><strong>₹${totalVal.toLocaleString('en-IN')}</strong></td>
-          <td><button type="button" class="btn-secondary" onclick="window.quickReturn('${b.id}')">Return</button></td>
+          <td>
+            <button type="button" class="btn-secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.5rem;" onclick="window.quickReturn('${b.id}')">
+              Return
+            </button>
+          </td>
         </tr>
       `;
     }).join('');
   };
 
-  // ==========================================================================
-  // SECTION 4: FEFO TABLE (SORTED CLOSEST EXPIRY AT TOP)
-  // ==========================================================================
   const renderBatchesAndFefoTable = () => {
     const tbody = document.getElementById('batchesTableBody');
     const empty = document.getElementById('emptyBatchesTableState');
@@ -696,36 +1817,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     empty.hidden = true;
 
-    const fefoSortedBatches = pharmacyDb.batches
-      .map(b => ({
-        ...b,
-        daysLeft: calculateDaysRemaining(b.expiryDate)
-      }))
-      .sort((a, b) => a.daysLeft - b.daysLeft);
-
-    tbody.innerHTML = fefoSortedBatches.map((b, index) => {
-      const risk = getRiskDetails(b.daysLeft);
+    tbody.innerHTML = pharmacyDb.batches.map(b => {
+      const days = calculateDaysRemaining(b.expiryDate);
+      const risk = getRiskDetails(days);
       const totalVal = b.quantity * b.purchaseRate;
-
-      let fefoBadge;
-      if (b.daysLeft <= 0) {
-        fefoBadge = `<span class="fefo-pill critical" style="background:#fee2e2; color:#991b1b; font-weight:700;">Do Not Sell (Expired)</span>`;
-      } else if (index === 0 || b.daysLeft <= 30) {
-        fefoBadge = `<span class="fefo-pill urgent" style="background:#ffedd5; color:#9a3412; font-weight:700;">Priority 1 (Sell First)</span>`;
-      } else if (b.daysLeft <= 90) {
-        fefoBadge = `<span class="fefo-pill warning" style="background:#fef9c3; color:#854d0e; font-weight:600;">Priority ${index + 1} (Sell Next)</span>`;
-      } else {
-        fefoBadge = `<span class="fefo-pill" style="background:#f1f5f9; color:#475569;">Priority ${index + 1} (Later Batch)</span>`;
-      }
 
       return `
         <tr>
           <td><strong>${b.name}</strong></td>
           <td><span class="table-batch-pill">${b.batchNo}</span></td>
           <td><strong>${b.quantity}</strong> units</td>
-          <td><span style="font-family: var(--font-mono); font-weight: 600;">${b.expiryDate}</span></td>
+          <td><span style="font-family: var(--font-mono);">${b.expiryDate}</span></td>
           <td><span class="risk-pill ${risk.class}">${risk.label}</span></td>
-          <td>${fefoBadge}</td>
+          <td><span class="fefo-pill">Priority 1</span></td>
           <td>${b.distributor || 'General Stockist'}</td>
           <td><strong>₹${totalVal.toLocaleString('en-IN')}</strong></td>
         </tr>
@@ -733,9 +1837,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   };
 
-  // ==========================================================================
-  // SECTION 5: TIERED LOW STOCK ALERTS (50 / 20 / 10 LIMITS)
-  // ==========================================================================
   const renderLowStockView = () => {
     const list = document.getElementById('lowStockList');
     const empty = document.getElementById('emptyLowStockState');
@@ -743,47 +1844,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!list || !empty) return;
 
     const medTotals = {};
-    const medTiers = {};
-
     pharmacyDb.batches.forEach(b => {
-      const k = b.name.trim();
-      medTotals[k] = (medTotals[k] || 0) + (Number(b.quantity) || 0);
-
-      if (!medTiers[k] || medTiers[k] === 'AUTO') {
-        if (b.demandTier && b.demandTier !== 'AUTO') {
-          medTiers[k] = b.demandTier;
-        } else if (window.InventoryRules) {
-          medTiers[k] = window.InventoryRules.inferDemandTier(k);
-        }
-      }
+      const k = b.name;
+      medTotals[k] = (medTotals[k] || 0) + b.quantity;
     });
 
-    const lowStockItems = [];
-    Object.keys(medTotals).forEach(name => {
-      const qty = medTotals[name];
-      const tier = medTiers[name] || (window.InventoryRules ? window.InventoryRules.inferDemandTier(name) : 'MEDIUM_DEMAND');
-
-      const alertInfo = window.InventoryRules 
-        ? window.InventoryRules.checkStockAlert(name, qty, tier)
-        : { isLowStock: qty <= 20, threshold: 20, tierLabel: 'Medium Demand' };
-
-      if (alertInfo.isLowStock && qty > 0) {
-        lowStockItems.push({
-          name,
-          qty,
-          threshold: alertInfo.threshold,
-          tierLabel: alertInfo.tierLabel,
-          deficit: alertInfo.deficit
-        });
-      }
-    });
+    const lowStockMeds = Object.keys(medTotals).filter(name => medTotals[name] > 0 && medTotals[name] < 15);
 
     if (sideCountLowStock) {
-      sideCountLowStock.textContent = lowStockItems.length;
-      sideCountLowStock.hidden = lowStockItems.length === 0;
+      sideCountLowStock.textContent = lowStockMeds.length;
+      sideCountLowStock.hidden = lowStockMeds.length === 0;
     }
 
-    if (lowStockItems.length === 0) {
+    if (lowStockMeds.length === 0) {
       list.hidden = true;
       empty.hidden = false;
       return;
@@ -791,95 +1864,186 @@ document.addEventListener('DOMContentLoaded', () => {
 
     empty.hidden = true;
     list.hidden = false;
-    lowStockItems.sort((a, b) => b.deficit - a.deficit);
 
-    list.innerHTML = lowStockItems.map(item => `
+    list.innerHTML = lowStockMeds.map(med => `
       <div style="display:flex; align-items:center; justify-content:space-between; padding:0.85rem 1rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.65rem;">
         <div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
-            <strong>${item.name}</strong>
-            <span style="font-size:0.7rem; padding:2px 6px; background:#f1f5f9; border-radius:4px; color:#475569;">${item.tierLabel}</span>
-          </div>
-          <div style="font-size:0.75rem; color:var(--status-warning); font-weight:700; margin-top:3px;">
-            ⚠️ Current Stock: ${item.qty} units (Threshold: ${item.threshold} • Need: +${item.deficit})
-          </div>
+          <strong>${med}</strong>
+          <div style="font-size:0.75rem; color:var(--status-warning); font-weight:700;">Stock: ${medTotals[med]} units (Threshold: 15)</div>
         </div>
-        <button type="button" class="btn-primary" style="height:32px; font-size:0.75rem;" onclick="alert('Reorder reminder set for ${item.name} (+${item.deficit} units)')">
+        <button type="button" class="btn-primary" style="height:32px; font-size:0.75rem;" onclick="alert('Reorder reminder created for ${med}')">
           Create Reorder Reminder
         </button>
       </div>
     `).join('');
   };
 
-  const renderReturnsView = () => {};
-  window.quickReturn = () => switchWorkspaceTab('returns');
-  const renderMovementLog = () => {};
-  const renderSuppliersView = () => {};
+  const renderReturnsView = () => {
+    const grid = document.getElementById('returnsCardsGrid');
+    const empty = document.getElementById('emptyReturnsState');
+    if (!grid || !empty) return;
 
-  // ==========================================================================
-  // OPERATING EXPENSES VIEW
-  // ==========================================================================
+    const expiringBatches = pharmacyDb.batches.filter(b => calculateDaysRemaining(b.expiryDate) <= 60);
+
+    if (expiringBatches.length === 0) {
+      grid.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+
+    empty.hidden = true;
+    grid.hidden = false;
+
+    const distGroups = {};
+    expiringBatches.forEach(b => {
+      const dist = b.distributor || 'General Stockist';
+      if (!distGroups[dist]) distGroups[dist] = [];
+      distGroups[dist].push(b);
+    });
+
+    grid.innerHTML = Object.keys(distGroups).map(dist => {
+      const items = distGroups[dist];
+      const claimVal = items.reduce((sum, i) => sum + (i.quantity * i.purchaseRate), 0);
+
+      return `
+        <div class="dash-card gradient-border-subtle" style="margin-bottom: 1rem;">
+          <div class="dash-card-header">
+            <div>
+              <strong>${dist}</strong>
+              <div style="font-size: 0.75rem; color: var(--color-text-muted);">${items.length} expiring batches eligible for debit note return</div>
+            </div>
+            <strong style="font-family: var(--font-mono); color: var(--status-critical); font-size: 1.1rem;">Claim: ₹${claimVal.toLocaleString('en-IN')}</strong>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+            ${items.map(i => `<span class="table-batch-pill">${i.name} (${i.batchNo}) - ${i.quantity} units</span>`).join('')}
+          </div>
+          <div style="margin-top: 0.75rem; display: flex; justify-content: flex-end;">
+            <button type="button" class="btn-primary" style="height: 34px; font-size: 0.8125rem;" onclick="window.generateDebitNote('${dist}')">
+              Generate Return Debit Note
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  window.generateDebitNote = (dist) => {
+    alert(`Official Return Debit Note Generated for ${dist}. Hand copy to distributor rep for 100% credit adjustment.`);
+  };
+
+  window.quickReturn = (batchId) => {
+    switchWorkspaceTab('returns');
+  };
+
+  const renderMovementLog = () => {
+    const tbody = document.getElementById('movementTableBody');
+    const empty = document.getElementById('emptyMovementState');
+    if (!tbody || !empty) return;
+
+    if (pharmacyDb.movements.length === 0) {
+      tbody.innerHTML = '';
+      empty.hidden = false;
+      return;
+    }
+
+    empty.hidden = true;
+
+    tbody.innerHTML = pharmacyDb.movements.map(m => `
+      <tr>
+        <td><span style="font-size:0.75rem; color:var(--color-text-muted);">${m.timestamp}</span></td>
+        <td><span class="risk-pill ${m.type === 'Sold' ? 'safe' : (m.type === 'Returned' ? 'warning' : 'critical')}">${m.type}</span></td>
+        <td><strong>${m.medicineName}</strong></td>
+        <td><span class="table-batch-pill">${m.batchNo}</span></td>
+        <td><strong>${m.quantity}</strong> units</td>
+        <td><strong>₹${(m.value || 0).toLocaleString('en-IN')}</strong></td>
+        <td><span style="font-size:0.75rem; color:var(--color-text-muted);">${m.notes || '—'}</span></td>
+      </tr>
+    `).join('');
+  };
+
+  const renderSuppliersView = () => {
+    const grid = document.getElementById('suppliersGrid');
+    if (!grid) return;
+
+    const suppliersMap = {};
+    pharmacyDb.batches.forEach(b => {
+      const s = b.distributor || 'General Stockist';
+      if (!suppliersMap[s]) suppliersMap[s] = { count: 0, spend: 0, bills: 0 };
+      suppliersMap[s].count += b.quantity;
+      suppliersMap[s].spend += (b.quantity * b.purchaseRate);
+    });
+
+    pharmacyDb.bills.forEach(bill => {
+      const s = bill.distributor;
+      if (suppliersMap[s]) suppliersMap[s].bills++;
+    });
+
+    const sKeys = Object.keys(suppliersMap);
+    if (sKeys.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state-small">
+          <p>No suppliers registered yet.</p>
+          <span>Suppliers are automatically created when you upload wholesale purchase bills.</span>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = sKeys.map(s => `
+      <div class="dash-card gradient-border-subtle" style="margin-bottom:1rem;">
+        <div class="dash-card-header">
+          <div>
+            <strong>${s}</strong>
+            <div style="font-size:0.75rem; color:var(--color-text-muted);">${suppliersMap[s].bills} Invoices Ingested</div>
+          </div>
+          <strong style="font-family:var(--font-mono); color:var(--brand-primary); font-size:1.05rem;">₹${suppliersMap[s].spend.toLocaleString('en-IN')}</strong>
+        </div>
+      </div>
+    `).join('');
+  };
+
   const renderExpensesView = () => {
     const tbody = document.getElementById('expensesTableBody');
     const empty = document.getElementById('emptyExpensesState');
     if (!tbody || !empty) return;
 
-    if (!pharmacyDb.expenses || pharmacyDb.expenses.length === 0) {
+    if (pharmacyDb.expenses.length === 0) {
       tbody.innerHTML = '';
       empty.hidden = false;
-      empty.style.display = 'block';
       return;
     }
 
     empty.hidden = true;
-    empty.style.display = 'none';
 
     tbody.innerHTML = pharmacyDb.expenses.map(exp => `
       <tr>
         <td><span style="font-size:0.75rem; color:var(--color-text-muted);">${exp.date}</span></td>
         <td><span class="table-batch-pill">${exp.category}</span></td>
         <td><strong>${exp.desc}</strong></td>
-        <td><strong>₹${Number(exp.amount || 0).toLocaleString('en-IN')}</strong></td>
+        <td><strong>₹${exp.amount.toLocaleString('en-IN')}</strong></td>
       </tr>
     `).join('');
   };
 
-  const renderAnalyticsView = () => {};
+  const renderAnalyticsView = () => {
+    const anaLossPrevented = document.getElementById('anaLossPrevented');
+    const anaActiveStock = document.getElementById('anaActiveStock');
+    const anaTotalBills = document.getElementById('anaTotalBills');
 
-  // ==========================================================================
-  // NOTIFICATIONS FEED
-  // ==========================================================================
+    let totalActiveVal = pharmacyDb.batches.filter(b => b.quantity > 0).reduce((sum, b) => sum + (b.quantity * b.purchaseRate), 0);
+    let totalClearedVal = pharmacyDb.movements.filter(m => m.type === 'Returned').reduce((sum, m) => sum + (m.value || 0), 0);
+
+    if (anaLossPrevented) anaLossPrevented.textContent = `₹${totalClearedVal.toLocaleString('en-IN')}`;
+    if (anaActiveStock) anaActiveStock.textContent = `₹${totalActiveVal.toLocaleString('en-IN')}`;
+    if (anaTotalBills) anaTotalBills.textContent = pharmacyDb.bills.length;
+  };
+
   const renderNotificationsView = () => {
     const feed = document.getElementById('notificationsFeed');
     const empty = document.getElementById('emptyNotifsState');
-    const notifBadge = document.getElementById('notifBadge');
     if (!feed || !empty) return;
 
-    const allEvents = [];
-    pharmacyDb.bills.forEach(b => {
-      allEvents.push({
-        icon: '📄',
-        title: `Purchase Bill Ingested — ${b.distributor}`,
-        desc: `Invoice #${b.invoiceNo} • ${b.itemsCount} medicines recorded (Total: ₹${(b.totalAmount || 0).toLocaleString('en-IN')})`,
-        time: b.timestamp || b.date || 'Recently'
-      });
-    });
-
-    pharmacyDb.movements.forEach(m => {
-      allEvents.push({
-        icon: m.type === 'Sold' ? '🛒' : '🔄',
-        title: `${m.type}: ${m.medicineName}`,
-        desc: `Quantity: ${m.quantity} units (Batch: ${m.batchNo}) • Value: ₹${(m.value || 0).toLocaleString('en-IN')}`,
-        time: m.timestamp || 'Recently'
-      });
-    });
-
-    if (notifBadge) {
-      notifBadge.textContent = allEvents.length;
-      notifBadge.hidden = allEvents.length === 0;
-    }
-
-    if (allEvents.length === 0) {
+    if (pharmacyDb.notifications.length === 0) {
       feed.hidden = true;
       empty.hidden = false;
       return;
@@ -888,40 +2052,115 @@ document.addEventListener('DOMContentLoaded', () => {
     empty.hidden = true;
     feed.hidden = false;
 
-    feed.innerHTML = allEvents.map(item => `
-      <div style="display:flex; align-items:flex-start; gap:0.85rem; padding:0.95rem 1.15rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.75rem;">
-        <span style="font-size:1.35rem; line-height:1; margin-top:2px;">${item.icon}</span>
+    feed.innerHTML = pharmacyDb.notifications.map(n => `
+      <div style="display:flex; gap:0.75rem; padding:0.85rem 1rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.65rem;">
+        <span style="color:var(--brand-primary); font-size:1.1rem;">🔔</span>
         <div style="flex:1;">
-          <div style="font-weight:700; color:var(--color-text-main); font-size:0.9rem; display:flex; justify-content:space-between; align-items:center;">
-            <span>${item.title}</span>
-            <span style="font-size:0.725rem; font-weight:600; color:var(--color-text-muted); background:#f1f5f9; padding:2px 8px; border-radius:12px;">${item.time}</span>
-          </div>
-          <div style="font-size:0.8rem; color:var(--color-text-secondary); margin-top:3px;">
-            ${item.desc}
-          </div>
+          <div style="font-weight:600; color:var(--color-text-main); font-size:0.875rem;">${n.text}</div>
+          <div style="font-size:0.725rem; color:var(--color-text-muted);">${n.timestamp}</div>
         </div>
       </div>
     `).join('');
   };
 
+  const renderBillsHistory = () => {
+    const list = document.getElementById('billsHistoryList');
+    const empty = document.getElementById('emptyBillsHistory');
+    if (!list || !empty) return;
+
+    if (pharmacyDb.bills.length === 0) {
+      list.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+
+    empty.hidden = true;
+    list.hidden = false;
+
+    list.innerHTML = pharmacyDb.bills.map(bill => `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 0.65rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">📄</div>
+          <div>
+            <strong>${bill.distributor}</strong>
+            <div style="font-size: 0.75rem; color: var(--color-text-muted);">Invoice #${bill.invoiceNo} • ${bill.date}</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+          <div style="text-align: right;">
+            <strong style="font-family: var(--font-mono); font-size: 0.95rem;">₹${bill.totalAmount.toLocaleString('en-IN')}</strong>
+            <div style="font-size: 0.75rem; color: #059669; font-weight: 600;">${bill.itemsCount} medicines added</div>
+          </div>
+          ${bill.originalFileUrl ? `<a href="${bill.originalFileUrl}" target="_blank" class="btn-secondary" style="height:28px; font-size:0.75rem; padding:0 0.5rem;">View Original ↗</a>` : ''}
+        </div>
+      </div>
+    `).join('');
+  };
+
+  const inventorySearchInput = document.getElementById('inventorySearchInput');
+  const inventoryExpiryFilter = document.getElementById('inventoryExpiryFilter');
+  if (inventorySearchInput) inventorySearchInput.addEventListener('input', renderInventoryTable);
+  if (inventoryExpiryFilter) inventoryExpiryFilter.addEventListener('change', renderInventoryTable);
+
   // ==========================================================================
-  // BILL OCR & INGESTION
+  // 8. DEDICATED SMART BILL CAPTURE & ZERO DUMMY EXTRACTION PIPELINE
   // ==========================================================================
+  const billDropzoneWrapper = document.getElementById('billDropzoneWrapper');
+  const billDropzone = document.getElementById('billDropzone');
   const billFileInput = document.getElementById('billFileInput');
+  const browseFileBtn = document.getElementById('browseFileBtn');
+  const cameraUploadBtn = document.getElementById('cameraUploadBtn');
+  const manualEntryFallbackBtn = document.getElementById('manualEntryFallbackBtn');
+  const manualEntryFromAlertBtn = document.getElementById('manualEntryFromAlertBtn');
+  const retryBillUploadBtn = document.getElementById('retryBillUploadBtn');
+  const billPipelineIndicator = document.getElementById('billPipelineIndicator');
+  const billExtractionAlert = document.getElementById('billExtractionAlert');
   const ocrReviewContainer = document.getElementById('ocrReviewContainer');
   const ocrDistributorDisplay = document.getElementById('ocrDistributorDisplay');
   const ocrInvoiceNoDisplay = document.getElementById('ocrInvoiceNoDisplay');
   const ocrDateDisplay = document.getElementById('ocrDateDisplay');
   const ocrItemsCountDisplay = document.getElementById('ocrItemsCountDisplay');
+  const simBillLogo = document.getElementById('simBillLogo');
+  const simBillMeta = document.getElementById('simBillMeta');
+  const simBillTable = document.getElementById('simBillTable');
+  const originalBillPreviewImg = document.getElementById('originalBillPreviewImg');
   const ocrTableBody = document.getElementById('ocrTableBody');
+  const ocrAddRowBtn = document.getElementById('ocrAddRowBtn');
   const ocrConfirmSaveBtn = document.getElementById('ocrConfirmSaveBtn');
 
   let currentCapturedBill = null;
 
+  const setPipelineStep = (stepNumber) => {
+    if (!billPipelineIndicator) return;
+    billPipelineIndicator.hidden = false;
+    for (let i = 1; i <= 6; i++) {
+      const stepEl = document.getElementById(`pipeStep${i}`);
+      if (stepEl) {
+        if (i < stepNumber) {
+          stepEl.className = 'pipeline-step completed';
+        } else if (i === stepNumber) {
+          stepEl.className = 'pipeline-step active';
+        } else {
+          stepEl.className = 'pipeline-step';
+        }
+      }
+    }
+  };
+
   const processBillFile = async (file) => {
     if (!file) return;
+
+    if (billExtractionAlert) billExtractionAlert.hidden = true;
+    if (ocrReviewContainer) ocrReviewContainer.hidden = true;
+
+    setPipelineStep(1); // 1. Uploading...
+
     const formData = new FormData();
     formData.append('bill', file);
+
+    const t2 = setTimeout(() => setPipelineStep(2), 400);  // 2. Reading document...
+    const t3 = setTimeout(() => setPipelineStep(3), 1200); // 3. Understanding invoice...
+    const t4 = setTimeout(() => setPipelineStep(4), 2200); // 4. Extracting bill information...
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/bills/analyze`, {
@@ -929,22 +2168,43 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
         body: formData
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.items && data.items.length > 0) {
-          loadSideBySideReview(data, file);
-          return;
-        }
-      }
-    } catch (e) {}
 
-    // Fallback: If AI is offline, allow manual side-by-side entry
-    loadSideBySideReview({
-      distributor: 'Wholesale Supplier',
-      invoice_no: 'INV-' + Math.floor(1000 + Math.random() * 9000),
-      invoice_date: new Date().toISOString().split('T')[0],
-      items: [{ name: '', pack: '10s', batch_no: '', expiry_date: '', quantity: 10, purchase_rate: 100, mrp: 140 }]
-    }, file);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+
+      setPipelineStep(5); // 5. Checking extracted fields...
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success || !data.items || data.items.length === 0) {
+        // STRICT ZERO DUMMY RULE: Never generate fake medicines on failure
+        if (billPipelineIndicator) billPipelineIndicator.hidden = true;
+        if (billExtractionAlert) {
+          billExtractionAlert.hidden = false;
+          const desc = document.getElementById('billExtractionAlertDesc');
+          if (desc) desc.textContent = data.error || 'Unable to confidently extract medicines from this document. Please review and enter details manually.';
+        }
+        return;
+      }
+
+      setPipelineStep(6); // 6. Ready for review.
+      setTimeout(() => {
+        if (billPipelineIndicator) billPipelineIndicator.hidden = true;
+      }, 1200);
+
+      loadSideBySideReview(data, file);
+    } catch (e) {
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      if (billPipelineIndicator) billPipelineIndicator.hidden = true;
+      if (billExtractionAlert) {
+        billExtractionAlert.hidden = false;
+        const desc = document.getElementById('billExtractionAlertDesc');
+        if (desc) desc.textContent = 'Unable to reach EXPIREDNOT server. Please check your internet connection or enter details manually.';
+      }
+    }
   };
 
   const loadSideBySideReview = (invoiceObj, file = null) => {
@@ -954,6 +2214,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ocrInvoiceNoDisplay) ocrInvoiceNoDisplay.textContent = currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || '—';
     if (ocrDateDisplay) ocrDateDisplay.textContent = currentCapturedBill.invoice_date || currentCapturedBill.date || '—';
     if (ocrItemsCountDisplay) ocrItemsCountDisplay.textContent = currentCapturedBill.items ? currentCapturedBill.items.length : 0;
+
+    if (simBillLogo) simBillLogo.textContent = (currentCapturedBill.distributor || 'PURCHASE INVOICE').toUpperCase();
+    if (simBillMeta) simBillMeta.textContent = currentCapturedBill.invoice_no ? `TAX INVOICE #${currentCapturedBill.invoice_no}` : 'TAX INVOICE';
+
+    if (file && originalBillPreviewImg) {
+      if (file.type === 'application/pdf') {
+        originalBillPreviewImg.style.display = 'none';
+        if (simBillTable) {
+          simBillTable.innerHTML = `
+            <div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+              <span style="font-size: 2rem;">📄</span>
+              <p style="font-weight: 700; margin: 0.5rem 0 0.25rem 0; color: #1e293b;">${file.name}</p>
+              <p style="font-size: 0.75rem; color: #64748b;">PDF Document (${(file.size / 1024).toFixed(1)} KB)</p>
+            </div>
+          `;
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          originalBillPreviewImg.src = e.target.result;
+          originalBillPreviewImg.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    if (simBillTable && file && file.type !== 'application/pdf') {
+      simBillTable.innerHTML = (currentCapturedBill.items || []).map(item => `
+        <div class="sim-line">
+          <span>${item.name || 'Medicine'} (${item.batch_no || item.batchNo || '—'})</span>
+          <span>${item.quantity || 0} × ₹${item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : '—'}</span>
+        </div>
+      `).join('');
+    }
 
     renderOcrTable();
 
@@ -967,23 +2261,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!ocrTableBody || !currentCapturedBill) return;
 
     ocrTableBody.innerHTML = (currentCapturedBill.items || []).map((item, idx) => {
-      const pRate = item.purchase_rate !== undefined ? item.purchase_rate : (item.purchaseRate || 0);
-      const bNo = item.batch_no || item.batchNo || '';
-      const expDate = item.expiry_date || item.expiryDate || '';
-      const rowTotal = (parseFloat(item.quantity) || 0) * (parseFloat(pRate) || 0);
+      const pRate = (item.purchase_rate !== undefined && item.purchase_rate !== null) ? item.purchase_rate : (item.purchaseRate !== undefined ? item.purchaseRate : '');
+      const bNo = (item.batch_no !== undefined && item.batch_no !== null) ? item.batch_no : (item.batchNo || '');
+      const expDate = (item.expiry_date !== undefined && item.expiry_date !== null) ? item.expiry_date : (item.expiryDate || '');
+      const mrpVal = (item.mrp !== undefined && item.mrp !== null) ? item.mrp : '';
+      const qtyVal = (item.quantity !== undefined && item.quantity !== null) ? item.quantity : '';
+      const rowTotal = (parseFloat(qtyVal) || 0) * (parseFloat(pRate) || 0);
+      
+      const isHighConf = item.conf === 'high' && !item.needs_verification;
+      const noteTooltip = (item.validation_notes && item.validation_notes.length > 0) ? item.validation_notes.join(', ') : 'Requires pharmacist review';
+      const confBadge = isHighConf
+        ? `<span class="conf-badge conf-high">✓ Confident</span>`
+        : `<span class="conf-badge conf-unverified" title="${noteTooltip}">⚠ Verify</span>`;
 
       return `
         <tr data-index="${idx}">
-          <td><span class="conf-badge conf-high">✓ Verified</span></td>
-          <td><input type="text" value="${item.name || ''}" class="form-input ocr-in-name" style="height:32px; padding:0 0.5rem;" placeholder="Medicine Name" required></td>
-          <td><input type="text" value="${item.pack || ''}" class="form-input ocr-in-pack" style="height:32px; padding:0 0.5rem; width:65px;"></td>
+          <td>${confBadge}</td>
+          <td><input type="text" value="${item.name || ''}" class="form-input ocr-in-name" style="height:32px; padding:0 0.5rem;" placeholder="Exact Medicine Name" required></td>
+          <td><input type="text" value="${item.pack || ''}" class="form-input ocr-in-pack" style="height:32px; padding:0 0.5rem; width:65px;" placeholder="Pack"></td>
           <td><input type="text" value="${bNo}" class="form-input ocr-in-batch mono-input" style="height:32px; padding:0 0.5rem; width:100px;" placeholder="BATCH" required></td>
           <td><input type="text" value="${expDate}" class="form-input ocr-in-exp mono-input" style="height:32px; padding:0 0.5rem; width:90px;" placeholder="YYYY-MM" required></td>
-          <td><input type="number" value="${item.quantity || 1}" min="1" class="form-input ocr-in-qty" style="height:32px; padding:0 0.5rem; width:70px;" required></td>
-          <td><input type="number" value="${pRate}" min="0" step="0.01" class="form-input ocr-in-rate" style="height:32px; padding:0 0.5rem; width:80px;" required></td>
-          <td><input type="number" value="${item.mrp || ''}" min="0" step="0.01" class="form-input ocr-in-mrp" style="height:32px; padding:0 0.5rem; width:80px;"></td>
-          <td><strong style="font-family:var(--font-mono);">₹${rowTotal.toLocaleString('en-IN')}</strong></td>
-          <td><button type="button" class="btn-secondary" style="height:26px; padding:0 0.4rem; color:var(--status-critical);" onclick="window.removeCapturedLine(${idx})">×</button></td>
+          <td><input type="number" value="${qtyVal}" min="1" class="form-input ocr-in-qty" style="height:32px; padding:0 0.5rem; width:70px;" placeholder="Qty" required></td>
+          <td><input type="number" value="${pRate}" min="0" step="0.01" class="form-input ocr-in-rate" style="height:32px; padding:0 0.5rem; width:80px;" placeholder="Rate" required></td>
+          <td><input type="number" value="${mrpVal}" min="0" step="0.01" class="form-input ocr-in-mrp" style="height:32px; padding:0 0.5rem; width:80px;" placeholder="MRP"></td>
+          <td><strong style="font-family:var(--font-mono);">₹${rowTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
+          <td>
+            <button type="button" class="btn-secondary" style="height:26px; padding:0 0.4rem; color:var(--status-critical);" onclick="window.removeCapturedLine(${idx})">×</button>
+          </td>
         </tr>
       `;
     }).join('');
@@ -1001,12 +2305,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const sync = () => {
         if (currentCapturedBill.items && currentCapturedBill.items[idx]) {
           currentCapturedBill.items[idx].name = inName.value;
-          currentCapturedBill.items[idx].pack = inPack.value;
+          currentCapturedBill.items[idx].pack = inPack.value || null;
           currentCapturedBill.items[idx].batch_no = inBatch.value;
           currentCapturedBill.items[idx].expiry_date = inExp.value;
-          currentCapturedBill.items[idx].quantity = parseFloat(inQty.value) || 0;
-          currentCapturedBill.items[idx].purchase_rate = parseFloat(inRate.value) || 0;
-          currentCapturedBill.items[idx].mrp = parseFloat(inMrp.value) || 0;
+          currentCapturedBill.items[idx].quantity = inQty.value ? parseFloat(inQty.value) : null;
+          currentCapturedBill.items[idx].purchase_rate = inRate.value ? parseFloat(inRate.value) : null;
+          currentCapturedBill.items[idx].mrp = inMrp.value ? parseFloat(inMrp.value) : null;
         }
       };
 
@@ -1023,6 +2327,50 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOcrTable();
   };
 
+  if (ocrAddRowBtn) {
+    ocrAddRowBtn.addEventListener('click', () => {
+      if (!currentCapturedBill) return;
+      if (!currentCapturedBill.items) currentCapturedBill.items = [];
+      currentCapturedBill.items.push({
+        name: '',
+        pack: null,
+        batch_no: '',
+        expiry_date: '',
+        quantity: null,
+        purchase_rate: null,
+        mrp: null,
+        conf: 'needs_verification',
+        needs_verification: true
+      });
+      if (ocrItemsCountDisplay) ocrItemsCountDisplay.textContent = currentCapturedBill.items.length;
+      renderOcrTable();
+    });
+  }
+
+  // Manual fallback entry trigger
+  const launchManualBillCapture = () => {
+    if (billExtractionAlert) billExtractionAlert.hidden = true;
+    loadSideBySideReview({
+      distributor: '',
+      invoice_no: '',
+      invoice_date: new Date().toISOString().split('T')[0],
+      items: [
+        { name: '', pack: null, batch_no: '', expiry_date: '', quantity: null, purchase_rate: null, mrp: null, conf: 'needs_verification', needs_verification: true }
+      ]
+    });
+  };
+
+  if (manualEntryFallbackBtn) manualEntryFallbackBtn.addEventListener('click', launchManualBillCapture);
+  if (manualEntryFromAlertBtn) manualEntryFromAlertBtn.addEventListener('click', launchManualBillCapture);
+  if (retryBillUploadBtn && billFileInput) retryBillUploadBtn.addEventListener('click', () => billFileInput.click());
+
+  if (browseFileBtn && billFileInput) {
+    browseFileBtn.addEventListener('click', () => billFileInput.click());
+  }
+  if (cameraUploadBtn && billFileInput) {
+    cameraUploadBtn.addEventListener('click', () => billFileInput.click());
+  }
+
   if (billFileInput) {
     billFileInput.addEventListener('change', () => {
       if (billFileInput.files && billFileInput.files[0]) {
@@ -1031,6 +2379,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Drag and drop handler
+  if (billDropzone) {
+    billDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      billDropzone.style.borderColor = 'var(--brand-primary)';
+    });
+    billDropzone.addEventListener('dragleave', () => {
+      billDropzone.style.borderColor = 'var(--color-border)';
+    });
+    billDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      billDropzone.style.borderColor = 'var(--color-border)';
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        processBillFile(e.dataTransfer.files[0]);
+      }
+    });
+  }
+
+  // Confirm Bill -> Save to Real DB (Human Review Gate)
   if (ocrConfirmSaveBtn) {
     ocrConfirmSaveBtn.addEventListener('click', async () => {
       if (!currentCapturedBill || !currentCapturedBill.items || currentCapturedBill.items.length === 0) {
@@ -1038,70 +2405,156 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const invoiceNo = currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || ('INV-' + Math.floor(1000 + Math.random() * 9000));
-      const distributor = currentCapturedBill.distributor || 'Wholesale Stockist';
-      const invoiceDate = currentCapturedBill.invoice_date || currentCapturedBill.date || new Date().toISOString().split('T')[0];
+      // Check required fields
+      for (let i = 0; i < currentCapturedBill.items.length; i++) {
+        const item = currentCapturedBill.items[i];
+        const name = (item.name || '').trim();
+        const bNo = (item.batch_no || item.batchNo || '').trim();
+        const exp = (item.expiry_date || item.expiryDate || '').trim();
+        const qty = parseFloat(item.quantity);
+        const rate = parseFloat(item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : item.purchaseRate);
+        
+        if (!name) {
+          alert(`Item #${i + 1}: Please enter the exact medicine name.`);
+          return;
+        }
+        if (!bNo) {
+          alert(`Item #${i + 1} (${name}): Please enter the batch number.`);
+          return;
+        }
+        if (!exp) {
+          alert(`Item #${i + 1} (${name}): Please enter the expiry date (YYYY-MM).`);
+          return;
+        }
+        if (isNaN(qty) || qty <= 0) {
+          alert(`Item #${i + 1} (${name}): Please enter a valid quantity.`);
+          return;
+        }
+        if (isNaN(rate) || rate < 0) {
+          alert(`Item #${i + 1} (${name}): Please enter a valid purchase rate.`);
+          return;
+        }
+      }
 
-      let totalBillAmount = 0;
-      currentCapturedBill.items.forEach(item => {
-        const rate = parseFloat(item.purchase_rate) || 0;
-        const qty = parseFloat(item.quantity) || 1;
-        totalBillAmount += (qty * rate);
+      ocrConfirmSaveBtn.disabled = true;
+      ocrConfirmSaveBtn.textContent = 'Saving to Real Inventory…';
 
-        const tier = window.InventoryRules 
-          ? window.InventoryRules.inferDemandTier(item.name) 
-          : 'MEDIUM_DEMAND';
+      const payload = {
+        bill_id: currentCapturedBill.bill_id,
+        distributor: currentCapturedBill.distributor || 'Unspecified Supplier',
+        invoice_no: currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'UNSPECIFIED',
+        invoice_date: currentCapturedBill.invoice_date || currentCapturedBill.date || new Date().toISOString().split('T')[0],
+        original_file_url: currentCapturedBill.original_file_url || '',
+        items: currentCapturedBill.items.map(item => {
+          const pRate = parseFloat(item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : item.purchaseRate) || 0;
+          const rawMrp = item.mrp !== undefined && item.mrp !== null ? parseFloat(item.mrp) : null;
+          return {
+            name: item.name.trim(),
+            generic_name: item.generic_name || null,
+            pack: item.pack || 'Standard',
+            batch_no: (item.batch_no || item.batchNo || '').trim().toUpperCase(),
+            expiry_date: (item.expiry_date || item.expiryDate || '').trim(),
+            quantity: parseFloat(item.quantity) || 1,
+            purchase_rate: pRate,
+            mrp: rawMrp !== null && !isNaN(rawMrp) ? rawMrp : pRate
+          };
+        })
+      };
 
-        pharmacyDb.batches.unshift({
-          id: 'B_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-          name: item.name.trim(),
-          pack: item.pack || 'Standard',
-          batchNo: (item.batch_no || item.batchNo).trim().toUpperCase(),
-          expiryDate: item.expiry_date || item.expiryDate,
-          quantity: qty,
-          purchaseRate: rate,
-          mrp: parseFloat(item.mrp) || (rate * 1.3),
-          rack: 'Rack A-1',
-          distributor: distributor,
-          demandTier: tier,
-          createdAt: new Date().toISOString()
+      try {
+        const res = await authenticatedFetch(`${API_BASE_URL}/api/bills/confirm`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
         });
-      });
+        const data = await res.json();
 
-      pharmacyDb.bills.unshift({
-        id: 'BILL_' + Date.now(),
-        distributor: distributor,
-        invoiceNo: invoiceNo,
-        date: invoiceDate,
-        totalAmount: totalBillAmount,
-        itemsCount: currentCapturedBill.items.length,
-        originalFileUrl: '',
-        timestamp: 'Just now'
-      });
+        ocrConfirmSaveBtn.disabled = false;
+        ocrConfirmSaveBtn.textContent = 'Confirm & Add to Inventory →';
 
-      savePharmacyData();
-      currentCapturedBill = null;
-      if (ocrReviewContainer) ocrReviewContainer.hidden = true;
+        if (!res.ok) {
+          alert(data.error || 'Failed to save bill.');
+          return;
+        }
 
-      refreshAllWorkspaceViews();
-      switchWorkspaceTab('dashboard');
-      alert(`✓ Invoice #${invoiceNo} processed! Added to inventory.`);
+        // Sync local DB copy
+        payload.items.forEach(item => {
+          pharmacyDb.batches.push({
+            id: 'B_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            name: item.name,
+            pack: item.pack,
+            batchNo: item.batch_no,
+            expiryDate: item.expiry_date,
+            quantity: item.quantity,
+            purchaseRate: item.purchase_rate,
+            mrp: item.mrp !== undefined && item.mrp !== null ? item.mrp : item.purchase_rate,
+            rack: 'Rack A-1',
+            distributor: payload.distributor,
+            createdAt: new Date().toISOString()
+          });
+
+          pharmacyDb.movements.unshift({
+            id: 'MOV_' + Date.now(),
+            timestamp: 'Just now',
+            type: 'Purchased',
+            medicineName: item.name,
+            batchNo: item.batch_no,
+            quantity: item.quantity,
+            value: item.quantity * item.purchase_rate,
+            notes: `Invoice #${payload.invoice_no}`
+          });
+        });
+
+        pharmacyDb.bills.unshift({
+          id: data.bill_id || ('BILL_' + Date.now()),
+          distributor: payload.distributor,
+          invoiceNo: payload.invoice_no,
+          date: payload.invoice_date,
+          totalAmount: data.total_amount || 0,
+          itemsCount: payload.items.length,
+          originalFileUrl: payload.original_file_url,
+          timestamp: 'Just now'
+        });
+
+        pharmacyDb.activity.unshift({
+          id: 'ACT_' + Date.now(),
+          text: `Ingested ${payload.distributor} Bill #${payload.invoice_no}`,
+          timestamp: 'Just now'
+        });
+
+        savePharmacyData();
+        currentCapturedBill = null;
+        if (ocrReviewContainer) ocrReviewContainer.hidden = true;
+
+        refreshAllWorkspaceViews();
+        switchWorkspaceTab('dashboard');
+      } catch (err) {
+        ocrConfirmSaveBtn.disabled = false;
+        ocrConfirmSaveBtn.textContent = 'Confirm & Add to Inventory →';
+        alert('Unable to reach EXPIREDNOT server. Please check your internet connection.');
+      }
     });
   }
 
   // ==========================================================================
-  // MODALS: ADD MEDICINE & EXPENSES
+  // 9. MODALS: MANUAL ADD MEDICINE, LOG MOVEMENT, ADD EXPENSE
   // ==========================================================================
+  
+  // Add Medicine Modal
   const addMedModal = document.getElementById('addMedModal');
-  const addMedForm = document.getElementById('addMedForm');
+  const addMedBackdrop = document.getElementById('addMedBackdrop');
+  const topbarAddMedBtn = document.getElementById('topbarAddMedBtn');
+  const emptyAddMedBtn = document.getElementById('emptyAddMedBtn');
+  const inventoryAddMedBtn = document.getElementById('inventoryAddMedBtn');
   const closeAddMedBtn = document.getElementById('closeAddMedBtn');
   const cancelAddMedBtn = document.getElementById('cancelAddMedBtn');
+  const addMedForm = document.getElementById('addMedForm');
 
   const openAddMedModal = () => {
     if (!addMedModal) return;
     addMedModal.classList.remove('view-hidden');
     addMedModal.classList.add('view-active');
-    document.getElementById('mMedName')?.focus();
+    const mMedName = document.getElementById('mMedName');
+    if (mMedName) mMedName.focus();
   };
 
   const closeAddMedModal = () => {
@@ -1111,17 +2564,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addMedForm) addMedForm.reset();
   };
 
-  document.getElementById('topbarAddMedBtn')?.addEventListener('click', openAddMedModal);
-  document.getElementById('emptyAddMedBtn')?.addEventListener('click', openAddMedModal);
-  document.getElementById('inventoryAddMedBtn')?.addEventListener('click', openAddMedModal);
+  if (topbarAddMedBtn) topbarAddMedBtn.addEventListener('click', openAddMedModal);
+  if (emptyAddMedBtn) emptyAddMedBtn.addEventListener('click', openAddMedModal);
+  if (inventoryAddMedBtn) inventoryAddMedBtn.addEventListener('click', openAddMedModal);
+  if (addMedBackdrop) addMedBackdrop.addEventListener('click', closeAddMedModal);
   if (closeAddMedBtn) closeAddMedBtn.addEventListener('click', closeAddMedModal);
   if (cancelAddMedBtn) cancelAddMedBtn.addEventListener('click', closeAddMedModal);
 
   if (addMedForm) {
-    addMedForm.addEventListener('submit', async (e) => {
+    addMedForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const mMedName = document.getElementById('mMedName');
-      const mDemandTier = document.getElementById('mDemandTier');
       const mBatchNo = document.getElementById('mBatchNo');
       const mExpiryDate = document.getElementById('mExpiryDate');
       const mQty = document.getElementById('mQty');
@@ -1130,62 +2583,119 @@ document.addEventListener('DOMContentLoaded', () => {
       const mRack = document.getElementById('mRack');
       const mDistributor = document.getElementById('mDistributor');
 
-      if (!mMedName?.value.trim() || !mBatchNo?.value.trim() || !mExpiryDate?.value || !mQty?.value || !mPurchaseRate?.value) {
+      if (!mMedName.value.trim() || !mBatchNo.value.trim() || !mExpiryDate.value || !mQty.value || !mPurchaseRate.value) {
         alert('Please fill all required fields.');
         return;
       }
 
       const qty = parseFloat(mQty.value) || 1;
       const rate = parseFloat(mPurchaseRate.value) || 0;
-      const mrp = parseFloat(mMrp?.value) || (rate > 0 ? rate * 1.3 : 0);
 
-      let selectedTier = mDemandTier ? mDemandTier.value : 'AUTO';
-      if (selectedTier === 'AUTO' || !selectedTier) {
-        selectedTier = window.InventoryRules 
-          ? window.InventoryRules.inferDemandTier(mMedName.value.trim()) 
-          : 'MEDIUM_DEMAND';
-      }
-
-      const newBatch = {
-        id: 'B_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      pharmacyDb.batches.push({
+        id: 'B_' + Date.now(),
         name: mMedName.value.trim(),
-        generic_name: '',
         pack: 'Standard',
         batchNo: mBatchNo.value.trim().toUpperCase(),
         expiryDate: mExpiryDate.value,
         quantity: qty,
         purchaseRate: rate,
-        mrp: mrp,
-        rack: mRack?.value.trim() || 'Rack A-1',
-        distributor: mDistributor?.value.trim() || 'Direct Supplier',
-        demandTier: selectedTier,
+        mrp: parseFloat(mMrp.value) || (rate * 1.3),
+        rack: mRack.value.trim() || 'Rack A-1',
+        distributor: mDistributor.value.trim() || 'Direct Supplier',
         createdAt: new Date().toISOString()
-      };
+      });
 
-      pharmacyDb.batches.unshift(newBatch);
-      pharmacyDb.movements.unshift({
-        id: 'MOV_' + Date.now(),
-        timestamp: 'Just now',
-        type: 'Purchased',
-        medicineName: newBatch.name,
-        batchNo: newBatch.batchNo,
-        quantity: qty,
-        value: qty * rate,
-        notes: 'Manual Entry'
+      pharmacyDb.activity.unshift({
+        id: 'ACT_' + Date.now(),
+        text: `Manually added ${mMedName.value.trim()} (Batch #${mBatchNo.value.trim().toUpperCase()})`,
+        timestamp: 'Just now'
       });
 
       savePharmacyData();
       closeAddMedModal();
       refreshAllWorkspaceViews();
-      alert(`✓ ${newBatch.name} (Batch ${newBatch.batchNo}) added to inventory!`);
     });
   }
 
-  // Expense Modal
+  // Log Movement Modal
+  const movementModal = document.getElementById('movementModal');
+  const movementBackdrop = document.getElementById('movementBackdrop');
+  const logMovementBtn = document.getElementById('logMovementBtn');
+  const closeMovementBtn = document.getElementById('closeMovementBtn');
+  const cancelMovementBtn = document.getElementById('cancelMovementBtn');
+  const movementForm = document.getElementById('movementForm');
+  const movMedicineSelect = document.getElementById('movMedicineSelect');
+
+  const openMovementModal = () => {
+    if (!movementModal || !movMedicineSelect) return;
+    const active = pharmacyDb.batches.filter(b => b.quantity > 0);
+    if (active.length === 0) {
+      alert('No active stock available to dispense or return.');
+      return;
+    }
+    movMedicineSelect.innerHTML = active.map(b => `
+      <option value="${b.id}">${b.name} (${b.batchNo}) - ${b.quantity} in stock</option>
+    `).join('');
+
+    movementModal.classList.remove('view-hidden');
+    movementModal.classList.add('view-active');
+  };
+
+  const closeMovementModal = () => {
+    if (!movementModal) return;
+    movementModal.classList.remove('view-active');
+    movementModal.classList.add('view-hidden');
+    if (movementForm) movementForm.reset();
+  };
+
+  if (logMovementBtn) logMovementBtn.addEventListener('click', openMovementModal);
+  if (movementBackdrop) movementBackdrop.addEventListener('click', closeMovementModal);
+  if (closeMovementBtn) closeMovementBtn.addEventListener('click', closeMovementModal);
+  if (cancelMovementBtn) cancelMovementBtn.addEventListener('click', closeMovementModal);
+
+  if (movementForm) {
+    movementForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const batchId = movMedicineSelect.value;
+      const movType = document.getElementById('movType').value;
+      const movQty = parseFloat(document.getElementById('movQty').value) || 1;
+      const movNotes = document.getElementById('movNotes').value.trim();
+
+      const batch = pharmacyDb.batches.find(b => b.id === batchId);
+      if (!batch) return;
+
+      if (movQty > batch.quantity) {
+        alert(`Cannot dispense ${movQty} units. Only ${batch.quantity} units available.`);
+        return;
+      }
+
+      batch.quantity -= movQty;
+      const lineVal = movQty * batch.purchaseRate;
+
+      pharmacyDb.movements.unshift({
+        id: 'MOV_' + Date.now(),
+        timestamp: 'Just now',
+        type: movType,
+        medicineName: batch.name,
+        batchNo: batch.batchNo,
+        quantity: movQty,
+        value: lineVal,
+        notes: movNotes
+      });
+
+      savePharmacyData();
+      closeMovementModal();
+      refreshAllWorkspaceViews();
+    });
+  }
+
+  // Add Expense Modal
   const expenseModal = document.getElementById('expenseModal');
-  const expenseForm = document.getElementById('expenseForm');
+  const expenseBackdrop = document.getElementById('expenseBackdrop');
+  const addExpenseBtn = document.getElementById('addExpenseBtn');
   const closeExpenseBtn = document.getElementById('closeExpenseBtn');
   const cancelExpenseBtn = document.getElementById('cancelExpenseBtn');
+  const expenseForm = document.getElementById('expenseForm');
 
   const openExpenseModal = () => {
     if (!expenseModal) return;
@@ -1200,19 +2710,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (expenseForm) expenseForm.reset();
   };
 
-  document.getElementById('addExpenseBtn')?.addEventListener('click', openExpenseModal);
+  if (addExpenseBtn) addExpenseBtn.addEventListener('click', openExpenseModal);
+  if (expenseBackdrop) expenseBackdrop.addEventListener('click', closeExpenseModal);
   if (closeExpenseBtn) closeExpenseBtn.addEventListener('click', closeExpenseModal);
   if (cancelExpenseBtn) cancelExpenseBtn.addEventListener('click', closeExpenseModal);
 
   if (expenseForm) {
     expenseForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const expCategory = document.getElementById('expCategory')?.value || 'Other';
-      const expAmount = parseFloat(document.getElementById('expAmount')?.value) || 0;
-      const expDesc = document.getElementById('expDesc')?.value?.trim() || '';
+      const expCategory = document.getElementById('expCategory').value;
+      const expAmount = parseFloat(document.getElementById('expAmount').value) || 0;
+      const expDesc = document.getElementById('expDesc').value.trim();
 
       if (!expDesc || expAmount <= 0) {
-        alert('Please enter a description and an amount greater than 0.');
+        alert('Please enter valid expense details.');
         return;
       }
 
@@ -1226,197 +2737,208 @@ document.addEventListener('DOMContentLoaded', () => {
 
       savePharmacyData();
       closeExpenseModal();
-      renderExpensesView();
-      alert(`✓ Recorded ₹${expAmount.toLocaleString('en-IN')} for ${expDesc}`);
+      refreshAllWorkspaceViews();
     });
   }
 
   // ==========================================================================
-  // PROFILE & OWNER-ONLY STAFF DIRECTORY
+  // 10. PRESENTATION DEMO MODE TOGGLE (ISOLATED)
   // ==========================================================================
-  const profileModal = document.getElementById('profileModal');
-  const profileStaffSection = document.getElementById('profileStaffSection');
-  const staffListContainer = document.getElementById('staffListContainer');
-  const addStaffBtn = document.getElementById('addStaffBtn');
-  const quickAddStaffForm = document.getElementById('quickAddStaffForm');
-  const saveStaffBtn = document.getElementById('saveStaffBtn');
-  const profilePhotoInput = document.getElementById('profilePhotoInput');
+  const loadDemoDataBtn = document.getElementById('loadDemoDataBtn');
+  const clearAllDataBtn = document.getElementById('clearAllDataBtn');
+  const demoModeBanner = document.getElementById('demoModeBanner');
+  const exitDemoModeBtn = document.getElementById('exitDemoModeBtn');
 
-  const getShopStaffStorageKey = () => {
-    const dl = currentPharmacy ? (currentPharmacy.dl_number || currentPharmacy.dlNumber || 'default') : 'default';
-    return `expirednot_staff_${dl.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  // Presentation Sample Dataset (Completely Isolated from Real Pharmacy DB)
+  const presentationDemoData = {
+    batches: [
+      { id: 'DEMO_1', name: 'Augmentin 625 Duo Tablet', generic_name: 'Amoxicillin + Clavulanate', pack: '10s', batchNo: 'AUG-9821', expiryDate: '2026-09', quantity: 14, purchaseRate: 155, mrp: 204, rack: 'Rack A-2', distributor: 'Cipla Distributors', createdAt: new Date().toISOString() },
+      { id: 'DEMO_2', name: 'Pan-D Capsule (15s)', generic_name: 'Pantoprazole + Domperidone', pack: '15s', batchNo: 'PND-4410', expiryDate: '2026-09', quantity: 28, purchaseRate: 185, mrp: 245, rack: 'Rack B-1', distributor: 'Sun Pharma Agency', createdAt: new Date().toISOString() },
+      { id: 'DEMO_3', name: 'Telma-AM 40/5mg Tablet', generic_name: 'Telmisartan + Amlodipine', pack: '15s', batchNo: 'TLM-1092', expiryDate: '2026-10', quantity: 20, purchaseRate: 195, mrp: 260, rack: 'Rack C-4', distributor: 'Alkem Labs Branch', createdAt: new Date().toISOString() },
+      { id: 'DEMO_4', name: 'Rosuvas 10mg Tablet', generic_name: 'Rosuvastatin', pack: '10s', batchNo: 'RSV-3318', expiryDate: '2027-02', quantity: 40, purchaseRate: 140, mrp: 195, rack: 'Rack D-1', distributor: 'Sun Pharma Agency', createdAt: new Date().toISOString() }
+    ],
+    bills: [
+      { id: 'BILL_DEMO_1', distributor: 'Cipla Distributors', invoiceNo: 'CP-9812', date: '2026-08-10', totalAmount: 4200, itemsCount: 1, timestamp: '3 days ago' },
+      { id: 'BILL_DEMO_2', distributor: 'Sun Pharma Agency', invoiceNo: 'SP-3910', date: '2026-08-12', totalAmount: 6850, itemsCount: 2, timestamp: '1 day ago' }
+    ],
+    movements: [
+      { id: 'MOV_DEMO_1', timestamp: 'Yesterday', type: 'Sold', medicineName: 'Augmentin 625 Duo Tablet', batchNo: 'AUG-9821', quantity: 2, value: 310, notes: 'Counter Rx #1092' }
+    ],
+    expenses: [
+      { id: 'EXP_DEMO_1', date: '2026-08-01', category: 'Rent', desc: 'Shop monthly rent', amount: 25000 }
+    ],
+    notifications: [
+      { id: 'NOTIF_D1', text: 'Augmentin 625 Duo (AUG-9821) expires in 22 days. Dispense via FEFO.', type: 'expiry', timestamp: '1 hour ago', read: false }
+    ],
+    activity: [
+      { id: 'ACT_D1', text: 'Ingested Cipla Distributors Bill #CP-9812 (₹4,200)', timestamp: '3 days ago' }
+    ]
   };
 
-  const renderStaffList = () => {
-    if (!staffListContainer) return;
-    let staffList = [];
-    try {
-      staffList = JSON.parse(localStorage.getItem(getShopStaffStorageKey())) || [];
-    } catch {}
+  if (loadDemoDataBtn) {
+    loadDemoDataBtn.addEventListener('click', () => {
+      isDemoMode = true;
+      realDbBackup = JSON.parse(JSON.stringify(pharmacyDb));
+      pharmacyDb = JSON.parse(JSON.stringify(presentationDemoData));
 
-    if (staffList.length === 0) {
-      staffListContainer.innerHTML = `<div style="font-size:0.75rem; color:#64748b; font-style:italic; padding:0.5rem; text-align:center;">No staff members added yet.</div>`;
-      return;
-    }
-
-    staffListContainer.innerHTML = staffList.map((worker, idx) => {
-      const initials = worker.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-      return `
-        <div class="staff-member-card">
-          <div class="staff-member-info">
-            <div class="staff-avatar-mini">${initials}</div>
-            <div>
-              <strong>${toTitleCase(worker.name)}</strong>
-              <div style="font-size: 0.7rem; color: #64748b;">📞 ${worker.mobile}</div>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:0.4rem;">
-            <span class="staff-badge-role">${worker.role}</span>
-            <button type="button" style="background:none; border:none; color:#ef4444; font-size:0.85rem; cursor:pointer;" onclick="window.removeStaffMember(${idx})">×</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  };
-
-  window.removeStaffMember = (index) => {
-    const key = getShopStaffStorageKey();
-    let staffList = JSON.parse(localStorage.getItem(key)) || [];
-    staffList.splice(index, 1);
-    localStorage.setItem(key, JSON.stringify(staffList));
-    renderStaffList();
-  };
-
-  if (addStaffBtn && quickAddStaffForm) {
-    addStaffBtn.addEventListener('click', () => {
-      const isHidden = quickAddStaffForm.style.display === 'none';
-      quickAddStaffForm.style.display = isHidden ? 'block' : 'none';
-      addStaffBtn.textContent = isHidden ? 'Cancel' : '+ Add Worker';
+      if (demoModeBanner) {
+        demoModeBanner.hidden = false;
+        demoModeBanner.style.display = 'flex';
+      }
+      refreshAllWorkspaceViews();
+      switchWorkspaceTab('dashboard');
     });
   }
 
-  if (saveStaffBtn) {
-    saveStaffBtn.addEventListener('click', () => {
-      const name = document.getElementById('staffNewName')?.value.trim();
-      const role = document.getElementById('staffNewRole')?.value || 'Pharmacist';
-      const mobile = document.getElementById('staffNewMobile')?.value.trim();
-
-      if (!name || !mobile) {
-        alert('Please enter worker name and mobile number.');
-        return;
+  if (exitDemoModeBtn) {
+    exitDemoModeBtn.addEventListener('click', async () => {
+      isDemoMode = false;
+      if (demoModeBanner) {
+        demoModeBanner.hidden = true;
+        demoModeBanner.style.display = 'none';
       }
 
-      const key = getShopStaffStorageKey();
-      let staffList = JSON.parse(localStorage.getItem(key)) || [];
-      staffList.push({ name, role, mobile, addedAt: new Date().toISOString() });
-      localStorage.setItem(key, JSON.stringify(staffList));
+      if (realDbBackup) {
+        pharmacyDb = realDbBackup;
+      } else {
+        pharmacyDb = { batches: [], bills: [], movements: [], expenses: [], notifications: [], activity: [] };
+      }
 
-      document.getElementById('staffNewName').value = '';
-      document.getElementById('staffNewMobile').value = '';
-      quickAddStaffForm.style.display = 'none';
-      addStaffBtn.textContent = '+ Add Worker';
-      renderStaffList();
+      if (currentPharmacy && currentPharmacy.id) {
+        await loadPharmacyData(currentPharmacy.id);
+      }
+      refreshAllWorkspaceViews();
     });
   }
 
-  window.openProfileModal = () => {
-    if (!profileModal || !currentPharmacy) return;
-
-    const sName = currentPharmacy.shop_name || currentPharmacy.shopName || 'My Pharmacy';
-    const sDl = currentPharmacy.dl_number || currentPharmacy.dlNumber || '—';
-    const pType = currentPharmacy.pharmacy_type || currentPharmacy.pharmacyType || 'Retail Pharmacy';
-    const pPhone = currentPharmacy.pharmacy_phone || currentPharmacy.pharmacyPhone || currentPharmacy.mobile || '—';
-    const sAddr = currentPharmacy.shop_address || currentPharmacy.shopAddress || '';
-    const sCity = currentPharmacy.city || '';
-    const sState = currentPharmacy.state || '';
-    const sPin = currentPharmacy.pincode || '';
-    const fullAddr = [sAddr, sCity, sState, sPin].filter(Boolean).join(', ') || 'Not specified';
-
-    const oName = toTitleCase(currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist');
-    const oRole = currentPharmacy.role || 'Owner';
-    const oMobile = currentPharmacy.owner_mobile || currentPharmacy.ownerMobile || currentPharmacy.mobile || '—';
-
-    setTxt('profShopName', sName);
-    setTxt('profDlNumber', sDl);
-    setTxt('profPharmacyType', pType);
-    setTxt('profPharmacyPhone', pPhone);
-    setTxt('profFullAddress', fullAddr);
-    setTxt('profOwnerName', oName);
-    setTxt('profRole', oRole);
-    setTxt('profOwnerMobile', oMobile);
-
-    const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-    setTxt('profileModalInitials', initials);
-
-    const savedPhoto = localStorage.getItem(`expirednot_dp_${currentPharmacy.id || 'current'}`);
-    const modalImg = document.getElementById('profileModalImg');
-    const modalInitials = document.getElementById('profileModalInitials');
-    if (savedPhoto && modalImg) {
-      modalImg.src = savedPhoto;
-      modalImg.style.display = 'block';
-      if (modalInitials) modalInitials.style.display = 'none';
-    } else {
-      if (modalImg) modalImg.style.display = 'none';
-      if (modalInitials) modalInitials.style.display = 'block';
-    }
-
-    // Role check: Only Owner sees the staff directory
-    const isOwner = (oRole || '').trim().toLowerCase() === 'owner';
-    if (profileStaffSection) {
-      profileStaffSection.style.display = isOwner ? 'block' : 'none';
-      if (isOwner) renderStaffList();
-    }
-
-    profileModal.classList.remove('view-hidden');
-    profileModal.classList.add('view-active');
-  };
-
-  const closeProfileModal = () => {
-    if (!profileModal) return;
-    profileModal.classList.remove('view-active');
-    profileModal.classList.add('view-hidden');
-  };
-
-  document.getElementById('userAvatarInitials')?.addEventListener('click', window.openProfileModal);
-  document.getElementById('closeProfileModalBtn')?.addEventListener('click', closeProfileModal);
-  document.getElementById('doneProfileBtn')?.addEventListener('click', closeProfileModal);
-  document.getElementById('changePhotoBtn')?.addEventListener('click', () => profilePhotoInput?.click());
-
-  if (profilePhotoInput) {
-    profilePhotoInput.addEventListener('change', () => {
-      const file = profilePhotoInput.files[0];
-      if (!file || !file.type.startsWith('image/')) {
-        alert('Please select an image file (PNG, JPG).');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target.result;
-        const key = `expirednot_dp_${currentPharmacy ? (currentPharmacy.id || 'current') : 'current'}`;
-        localStorage.setItem(key, base64);
-        window.openProfileModal();
+  if (clearAllDataBtn) {
+    clearAllDataBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset all records back to clean zero state?')) {
+        isDemoMode = false;
+        if (demoModeBanner) {
+          demoModeBanner.hidden = true;
+          demoModeBanner.style.display = 'none';
+        }
+        pharmacyDb = { batches: [], bills: [], movements: [], expenses: [], notifications: [], activity: [] };
+        savePharmacyData();
         refreshAllWorkspaceViews();
-      };
-      reader.readAsDataURL(file);
+        alert('Pharmacy inventory successfully reset to clean zero state.');
+      }
     });
   }
 
   // ==========================================================================
-  // BOOT CHECK
+  // 11. INITIAL PROTECTED SESSION CHECK & AUTH CONFIG BOOT
   // ==========================================================================
+  fetchAuthConfig();
+
   const initSessionCheck = async () => {
+    // Ensure demo mode is OFF on boot
+    isDemoMode = false;
+    if (demoModeBanner) {
+      demoModeBanner.hidden = true;
+      demoModeBanner.style.display = 'none';
+    }
+
+    // Attach Firebase Auth state listener to guard against unverified email/password sessions
+    if (window.firebaseAuth && typeof window.firebaseAuth.onAuthStateChanged === 'function') {
+      window.firebaseAuth.onAuthStateChanged(async (fbUser) => {
+        if (fbUser) {
+          const isPasswordProvider = fbUser.providerData && fbUser.providerData.some(p => p.providerId === 'password');
+          if (isPasswordProvider) {
+            try {
+              await fbUser.reload();
+            } catch {}
+            if (!fbUser.emailVerified) {
+              sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+              localStorage.removeItem(ACTIVE_SESSION_KEY);
+              sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
+              localStorage.removeItem(ACTIVE_TOKEN_KEY);
+              sessionToken = null;
+              currentPharmacy = null;
+
+              pendingRegistration.email = fbUser.email;
+              const maskedDisplay = document.getElementById('maskedEmailDisplay');
+              if (maskedDisplay) maskedDisplay.textContent = maskEmail(fbUser.email);
+
+              showScreen('signup');
+              goToOnboardingStep(2);
+              showOtpNotice('Verify your email before continuing.', 'error');
+            }
+          }
+        }
+      });
+    }
+
+    // Direct synchronous check on boot
+    if (window.firebaseAuth && window.firebaseAuth.currentUser) {
+      const fbUser = window.firebaseAuth.currentUser;
+      const isPasswordProvider = fbUser.providerData && fbUser.providerData.some(p => p.providerId === 'password');
+      if (isPasswordProvider) {
+        try {
+          await fbUser.reload();
+        } catch {}
+        if (!fbUser.emailVerified) {
+          sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+          localStorage.removeItem(ACTIVE_SESSION_KEY);
+          sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
+          localStorage.removeItem(ACTIVE_TOKEN_KEY);
+          sessionToken = null;
+          currentPharmacy = null;
+
+          pendingRegistration.email = fbUser.email;
+          const maskedDisplay = document.getElementById('maskedEmailDisplay');
+          if (maskedDisplay) maskedDisplay.textContent = maskEmail(fbUser.email);
+
+          showScreen('signup');
+          goToOnboardingStep(2);
+          showOtpNotice('Verify your email before continuing.', 'error');
+          return;
+        }
+      }
+    }
+
+    if (sessionToken) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/session`, {
+          headers: { 'Authorization': `Bearer ${sessionToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated && data.user) {
+            currentPharmacy = data.user;
+            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+            if (currentPharmacy.setup_completed || currentPharmacy.setupCompleted) {
+              await loadPharmacyData(currentPharmacy.id);
+              showScreen('dashboard');
+              return;
+            } else {
+              showScreen('signup');
+              goToOnboardingStep(3);
+              return;
+            }
+          }
+        }
+      } catch {}
+    }
+
     const activeSessionRaw = sessionStorage.getItem(ACTIVE_SESSION_KEY) || localStorage.getItem(ACTIVE_SESSION_KEY);
     if (activeSessionRaw) {
       try {
         currentPharmacy = JSON.parse(activeSessionRaw);
         if (currentPharmacy.setup_completed || currentPharmacy.setupCompleted) {
-          await loadPharmacyData(currentPharmacy.id);
+          loadPharmacyData(currentPharmacy.id);
           showScreen('dashboard');
-          return;
+        } else {
+          showScreen('welcome');
         }
-      } catch {}
+      } catch {
+        showScreen('welcome');
+      }
+    } else {
+      showScreen('welcome');
     }
-    showScreen('welcome');
   };
 
   initSessionCheck();
