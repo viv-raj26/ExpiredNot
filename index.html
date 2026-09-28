@@ -976,6 +976,12 @@
             <span class="sidebar-badge-highlight">Bill Intelligence</span>
           </button>
 
+          <button type="button" class="sidebar-nav-btn" data-tab="billhistory">
+            <span class="sidebar-icon">📑</span>
+            <span class="sidebar-label">Bill History</span>
+            <span class="sidebar-count-pill" id="sideCountBillHistory" hidden>0</span>
+          </button>
+
           <button type="button" class="sidebar-nav-btn" data-tab="inventory">
             <span class="sidebar-icon">📦</span>
             <span class="sidebar-label">Medicine Inventory</span>
@@ -1406,6 +1412,102 @@
                 <span>Upload your first invoice above to see your purchase history.</span>
               </div>
               <div class="bills-history-list" id="billsHistoryList" hidden></div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ====================================================================
+             PANEL 2.5: BILL HISTORY & AUDIT ARCHIVE
+             ==================================================================== -->
+        <section class="content-panel panel-hidden" id="paneBillHistory" aria-label="Purchase Bill History & Document Archive">
+          
+          <div class="panel-header-row">
+            <div>
+              <h2 class="panel-title">Purchase Bill History & Archive</h2>
+              <p class="panel-subtitle">Comprehensive ledger of confirmed invoices with original document archive and deep multi-field search.</p>
+            </div>
+            <div class="panel-actions-group">
+              <button type="button" class="btn-primary" id="billHistoryUploadBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>+ Upload New Bill</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter & Search Bar -->
+          <div class="dash-card gradient-border-subtle" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+            <div class="bill-history-search-row">
+              <div class="bill-search-input-wrapper">
+                <span class="bill-search-icon">🔍</span>
+                <input type="text" id="billHistorySearchInput" class="bill-search-input" placeholder="Search bills by distributor, invoice no, medicine name, batch, DL, GSTIN, place...">
+                <button type="button" id="billHistoryClearSearchBtn" class="bill-search-clear-btn" hidden title="Clear search">✕</button>
+              </div>
+
+              <div class="bill-filter-controls">
+                <div class="filter-select-group">
+                  <span class="filter-mini-label">Period:</span>
+                  <select id="billHistoryDateFilter" class="form-input select-input filter-select">
+                    <option value="all">All Time</option>
+                    <option value="this_month">This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="last_3_months">Last 3 Months</option>
+                    <option value="this_year">This Year</option>
+                  </select>
+                </div>
+
+                <div class="filter-select-group">
+                  <span class="filter-mini-label">Sort:</span>
+                  <select id="billHistorySortSelect" class="form-input select-input filter-select">
+                    <option value="bill_date_desc">Bill Date (Newest first)</option>
+                    <option value="bill_date_asc">Bill Date (Oldest first)</option>
+                    <option value="added_desc">Date Ingested (Newest)</option>
+                    <option value="amount_desc">Amount (High to Low)</option>
+                    <option value="amount_asc">Amount (Low to High)</option>
+                    <option value="supplier_asc">Distributor (A–Z)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="bill-search-status-bar" id="billSearchStatusBar">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="bill-results-badge" id="billResultsCount">0 bills</span>
+                <span class="active-query-pill" id="billActiveQueryPill" hidden>
+                  <span id="billActiveQueryText"></span>
+                  <button type="button" class="btn-remove-pill" id="billRemoveQueryPill">✕</button>
+                </span>
+              </div>
+              <span id="billResultsSubtext" style="font-size: 0.75rem;">Showing confirmed purchase invoices</span>
+            </div>
+          </div>
+
+          <!-- Bills Grid Container -->
+          <div id="billHistoryContentArea">
+            <div id="billHistoryGrid" class="bill-history-grid"></div>
+
+            <!-- Empty State (No bills at all) -->
+            <div class="empty-state-card" id="billHistoryEmptyState" hidden>
+              <div class="empty-state-icon">📑</div>
+              <h3>No Purchase Invoices Stored Yet</h3>
+              <p>Uploaded and confirmed bills are permanently archived here with their original documents, line items, and batch records.</p>
+              <button type="button" class="btn-primary" id="emptyStateUploadBillBtn" style="margin-top: 1rem;">
+                <span>+ Upload Your First Invoice</span>
+              </button>
+            </div>
+
+            <!-- No Results State (Search returned 0 items) -->
+            <div class="empty-state-card" id="billHistoryNoResultsState" hidden>
+              <div class="empty-state-icon">🔍</div>
+              <h3>No matching bills found</h3>
+              <p>We couldn't find any invoices matching your search criteria. Try searching by distributor, batch, medicine name, or invoice number.</p>
+              <button type="button" class="btn-secondary" id="resetBillSearchBtn" style="margin-top: 1rem;">
+                <span>Clear Search & Filters</span>
+              </button>
             </div>
           </div>
 
@@ -2092,6 +2194,150 @@
         </div>
 
       </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 3.5: BILL DETAIL & ORIGINAL DOCUMENT VIEWER
+       ========================================================================== -->
+  <div id="billDetailModal" class="modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="billDetailModalTitle">
+    <div class="modal-backdrop" id="billDetailModalBackdrop"></div>
+    
+    <div class="modal-card" style="max-width: 880px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+      
+      <!-- Modal Header -->
+      <div class="modal-header" style="flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div class="brand-symbol-small" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: #ecfdf5; border-radius: 8px; font-size: 1.25rem;">
+            📑
+          </div>
+          <div>
+            <h3 class="modal-title" id="billDetailModalTitle">Invoice Details</h3>
+            <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.15rem;" id="billDetailModalSubtitle">Confirmed purchase invoice record</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="closeBillDetailModalBtn">×</button>
+      </div>
+
+      <!-- Modal Scrollable Body -->
+      <div class="modal-body-scrollable" style="overflow-y: auto; padding: 1.25rem; flex: 1; display: flex; flex-direction: column; gap: 1.25rem;">
+        
+        <!-- Top Summary Cards (Distributor + Pharmacy + Bill Meta) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
+          
+          <!-- Seller / Distributor Card -->
+          <div class="dash-card gradient-border-subtle" style="padding: 0.85rem 1rem; background: var(--color-bg);">
+            <strong style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); display: block; margin-bottom: 0.4rem;">Distributor / Stockist</strong>
+            <div style="font-size: 0.9375rem; font-weight: 700; color: var(--color-text-main);" id="billDetailDistributorName">—</div>
+            <div style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.25rem;" id="billDetailDistributorAddress">—</div>
+            <div style="font-size: 0.75rem; color: var(--color-text-muted);" id="billDetailDistributorLocation">—</div>
+            <div style="font-size: 0.75rem; margin-top: 0.35rem; display: flex; flex-direction: column; gap: 0.15rem;">
+              <span id="billDetailDistributorGstin" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-text-main);"></span>
+              <span id="billDetailDistributorDl" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-text-main);"></span>
+            </div>
+          </div>
+
+          <!-- Invoice Summary Card -->
+          <div class="dash-card gradient-border-subtle" style="padding: 0.85rem 1rem; background: var(--color-bg);">
+            <strong style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); display: block; margin-bottom: 0.4rem;">Invoice Summary</strong>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+              <span style="font-size: 0.75rem; color: var(--color-text-muted);">Invoice No:</span>
+              <span class="mono-badge" id="billDetailInvoiceNo">—</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+              <span style="font-size: 0.75rem; color: var(--color-text-muted);">Bill Date:</span>
+              <strong style="font-size: 0.8125rem;" id="billDetailBillDate">—</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+              <span style="font-size: 0.75rem; color: var(--color-text-muted);">Ingested On:</span>
+              <span style="font-size: 0.75rem; color: var(--color-text-muted);" id="billDetailIngestedDate">—</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed var(--color-border);">
+              <span style="font-size: 0.8125rem; font-weight: 700; color: var(--color-text-main);">Total Amount:</span>
+              <strong style="font-family: var(--font-mono); font-size: 1.1rem; color: var(--brand-primary);" id="billDetailTotalAmount">₹0.00</strong>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Document Archive Section -->
+        <div class="dash-card gradient-border-subtle" style="padding: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 1rem;">📎</span>
+              <strong style="font-size: 0.875rem; color: var(--color-text-main);">Original Ingested Document</strong>
+              <span id="billDetailDocTypeBadge" class="mono-badge" style="font-size: 0.7rem;">IMAGE / PDF</span>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <a id="billDetailOpenDocBtn" href="#" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+                <span>Open in New Tab</span>
+              </a>
+              <a id="billDetailDownloadDocBtn" href="#" download class="btn-primary" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Download Document</span>
+              </a>
+            </div>
+          </div>
+          
+          <!-- Document Preview Box -->
+          <div id="billDetailDocContainer" class="doc-preview-wrapper" style="min-height: 180px;">
+            <div id="billDetailDocLoading" style="color: #94a3b8; font-size: 0.8125rem;">Loading document preview...</div>
+            <img id="billDetailDocImg" src="" alt="Original Invoice" style="max-width: 100%; max-height: 400px; display: none; object-fit: contain;">
+            <div id="billDetailDocPdfFallback" style="display: none; text-align: center; color: #cbd5e1; padding: 1.5rem;">
+              <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📄</div>
+              <p style="font-weight: 600; margin-bottom: 0.25rem;">PDF Invoice Document</p>
+              <p style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.75rem;">Click "Open in New Tab" or "Download Document" above to view full high-resolution PDF.</p>
+            </div>
+            <div id="billDetailDocEmptyFallback" style="display: none; text-align: center; color: #94a3b8; padding: 1.5rem;">
+              <p>No document file attached to this record.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Extracted Line Items Section -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong style="font-size: 0.875rem; color: var(--color-text-main);">Confirmed Line Items (<span id="billDetailItemsCount">0</span>)</strong>
+          </div>
+          
+          <div class="inventory-table-wrapper" style="border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden;">
+            <table class="data-table" style="font-size: 0.8125rem;">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Medicine Name</th>
+                  <th>Pack</th>
+                  <th>Batch</th>
+                  <th>Expiry</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>MRP</th>
+                  <th>Line Total</th>
+                </tr>
+              </thead>
+              <tbody id="billDetailItemsTableBody">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer" style="padding: 0.85rem 1.25rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; flex-shrink: 0;">
+        <button type="button" class="btn-secondary" id="bottomCloseBillDetailModalBtn">Close</button>
+      </div>
+
     </div>
   </div>
 

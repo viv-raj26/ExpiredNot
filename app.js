@@ -224,8 +224,13 @@ document.addEventListener('DOMContentLoaded', () => {
             totalAmount: b.total_amount,
             originalFileUrl: b.original_file_path,
             fileName: b.file_name,
-            itemsCount: b.items_count || 1,
-            timestamp: b.created_at ? new Date(b.created_at * 1000).toLocaleDateString() : 'Recent'
+            sellerData: b.seller_data || {},
+            buyerData: b.buyer_data || {},
+            taxesData: b.taxes_data || {},
+            itemsCount: b.items_count || (b.items ? b.items.length : 1),
+            items: b.items || [],
+            createdAt: b.created_at,
+            timestamp: b.created_at ? new Date(b.created_at * 1000).toLocaleString() : 'Recent'
           }));
         }
       }
@@ -1364,6 +1369,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const panels = {
     dashboard: document.getElementById('paneDashboard'),
     bills: document.getElementById('paneBills'),
+    billhistory: document.getElementById('paneBillHistory'),
     inventory: document.getElementById('paneInventory'),
     batches: document.getElementById('paneBatches'),
     lowstock: document.getElementById('paneLowStock'),
@@ -1598,6 +1604,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sideCountInventory = document.getElementById('sideCountInventory');
     const sideCountLowStock = document.getElementById('sideCountLowStock');
     const sideCountExpiry = document.getElementById('sideCountExpiry');
+    const sideCountBillHistory = document.getElementById('sideCountBillHistory');
     const notifBadge = document.getElementById('notifBadge');
 
     if (sideCountInventory) {
@@ -1607,6 +1614,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sideCountExpiry) {
       sideCountExpiry.textContent = expiringCount;
       sideCountExpiry.hidden = expiringCount === 0;
+    }
+    if (sideCountBillHistory) {
+      sideCountBillHistory.textContent = pharmacyDb.bills.length;
+      sideCountBillHistory.hidden = pharmacyDb.bills.length === 0;
     }
     if (notifBadge) {
       const unread = pharmacyDb.notifications.filter(n => !n.read).length;
@@ -2087,39 +2098,516 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   };
 
+  // ==========================================================================
+  // 7B. BILL HISTORY & DOCUMENT ARCHIVE CONTROLLER
+  // ==========================================================================
+  const billHistorySearchInput = document.getElementById('billHistorySearchInput');
+  const billHistoryClearSearchBtn = document.getElementById('billHistoryClearSearchBtn');
+  const billHistoryDateFilter = document.getElementById('billHistoryDateFilter');
+  const billHistorySortSelect = document.getElementById('billHistorySortSelect');
+  const billHistoryGrid = document.getElementById('billHistoryGrid');
+  const billHistoryEmptyState = document.getElementById('billHistoryEmptyState');
+  const billHistoryNoResultsState = document.getElementById('billHistoryNoResultsState');
+  const billResultsCount = document.getElementById('billResultsCount');
+  const billActiveQueryPill = document.getElementById('billActiveQueryPill');
+  const billActiveQueryText = document.getElementById('billActiveQueryText');
+  const billRemoveQueryPill = document.getElementById('billRemoveQueryPill');
+  const billHistoryUploadBtn = document.getElementById('billHistoryUploadBtn');
+  const emptyStateUploadBillBtn = document.getElementById('emptyStateUploadBillBtn');
+  const resetBillSearchBtn = document.getElementById('resetBillSearchBtn');
+
+  // Modal elements
+  const billDetailModal = document.getElementById('billDetailModal');
+  const billDetailModalBackdrop = document.getElementById('billDetailModalBackdrop');
+  const closeBillDetailModalBtn = document.getElementById('closeBillDetailModalBtn');
+  const bottomCloseBillDetailModalBtn = document.getElementById('bottomCloseBillDetailModalBtn');
+
+  let billSearchDebounceTimer = null;
+  let serverSearchedBills = null; // null if not active
+
+  const escapeHtml = (str) => {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  const getBillDocumentUrl = (bill, isDownload = false) => {
+    if (!bill) return '#';
+    const token = (currentPharmacy && currentPharmacy.id) ? currentPharmacy.id : (sessionToken || '');
+    let url = '';
+    if (bill.originalFileUrl && bill.originalFileUrl.startsWith('/api/bills/')) {
+      url = `${API_BASE_URL}${bill.originalFileUrl}`;
+    } else if (bill.id) {
+      url = `${API_BASE_URL}/api/bills/${encodeURIComponent(bill.id)}/document`;
+    } else if (bill.originalFileUrl) {
+      url = bill.originalFileUrl.startsWith('http') ? bill.originalFileUrl : `${API_BASE_URL}${bill.originalFileUrl}`;
+    } else {
+      return '#';
+    }
+    const sep = url.includes('?') ? '&' : '?';
+    if (token) {
+      url += `${sep}token=${encodeURIComponent(token)}`;
+    }
+    if (isDownload) {
+      url += `${url.includes('?') ? '&' : '?'}download=1`;
+    }
+    return url;
+  };
+
   const renderBillsHistory = () => {
+    // 1. Render mini history list inside Upload Bills tab
     const list = document.getElementById('billsHistoryList');
     const empty = document.getElementById('emptyBillsHistory');
-    if (!list || !empty) return;
+    if (list && empty) {
+      if (pharmacyDb.bills.length === 0) {
+        list.hidden = true;
+        empty.hidden = false;
+      } else {
+        empty.hidden = true;
+        list.hidden = false;
+        list.innerHTML = pharmacyDb.bills.slice(0, 10).map(bill => `
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 0.65rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">📄</div>
+              <div>
+                <strong>${escapeHtml(bill.distributor)}</strong>
+                <div style="font-size: 0.75rem; color: var(--color-text-muted);">Invoice #${escapeHtml(bill.invoiceNo)} • ${escapeHtml(bill.date)}</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              <div style="text-align: right;">
+                <strong style="font-family: var(--font-mono); font-size: 0.95rem;">₹${(bill.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                <div style="font-size: 0.75rem; color: #059669; font-weight: 600;">${bill.itemsCount || 1} medicine${(bill.itemsCount === 1) ? '' : 's'}</div>
+              </div>
+              <button type="button" class="btn-secondary" style="height:28px; font-size:0.75rem; padding:0 0.5rem;" onclick="window.openBillDetail('${escapeHtml(bill.id)}')">View Bill ↗</button>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
 
-    if (pharmacyDb.bills.length === 0) {
-      list.hidden = true;
-      empty.hidden = false;
+    // 2. Render main dedicated Bill History view
+    renderBillHistoryView();
+  };
+
+  const renderBillHistoryView = () => {
+    if (!billHistoryGrid) return;
+
+    if (pharmacyDb.bills.length === 0 && (!serverSearchedBills || serverSearchedBills.length === 0)) {
+      billHistoryGrid.innerHTML = '';
+      if (billHistoryEmptyState) billHistoryEmptyState.hidden = false;
+      if (billHistoryNoResultsState) billHistoryNoResultsState.hidden = true;
+      if (billResultsCount) billResultsCount.textContent = '0 bills';
+      if (billActiveQueryPill) billActiveQueryPill.hidden = true;
       return;
     }
 
-    empty.hidden = true;
-    list.hidden = false;
+    if (billHistoryEmptyState) billHistoryEmptyState.hidden = true;
 
-    list.innerHTML = pharmacyDb.bills.map(bill => `
-      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 0.65rem;">
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-          <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">📄</div>
-          <div>
-            <strong>${bill.distributor}</strong>
-            <div style="font-size: 0.75rem; color: var(--color-text-muted);">Invoice #${bill.invoiceNo} • ${bill.date}</div>
+    const searchTerm = billHistorySearchInput ? billHistorySearchInput.value.trim().toLowerCase() : '';
+    const dateFilter = billHistoryDateFilter ? billHistoryDateFilter.value : 'all';
+    const sortVal = billHistorySortSelect ? billHistorySortSelect.value : 'bill_date_desc';
+
+    if (billHistoryClearSearchBtn) {
+      billHistoryClearSearchBtn.hidden = !searchTerm;
+    }
+
+    if (billActiveQueryPill && billActiveQueryText) {
+      if (searchTerm) {
+        billActiveQueryText.textContent = `Search: "${searchTerm}"`;
+        billActiveQueryPill.hidden = false;
+      } else {
+        billActiveQueryPill.hidden = true;
+      }
+    }
+
+    let sourceBills = serverSearchedBills !== null ? serverSearchedBills : [...pharmacyDb.bills];
+
+    // Local client-side filter
+    let filtered = sourceBills.filter(bill => {
+      // Date filter
+      if (dateFilter !== 'all' && bill.date) {
+        const bDate = new Date(bill.date);
+        const now = new Date();
+        if (dateFilter === 'this_month') {
+          if (bDate.getFullYear() !== now.getFullYear() || bDate.getMonth() !== now.getMonth()) return false;
+        } else if (dateFilter === 'last_month') {
+          const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          if (bDate.getFullYear() !== lastM.getFullYear() || bDate.getMonth() !== lastM.getMonth()) return false;
+        } else if (dateFilter === 'last_3_months') {
+          const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          if (bDate < threeMonthsAgo) return false;
+        } else if (dateFilter === 'this_year') {
+          if (bDate.getFullYear() !== now.getFullYear()) return false;
+        }
+      }
+
+      // Text search match fallback if not handled by server search
+      if (searchTerm && serverSearchedBills === null) {
+        const dist = (bill.distributor || '').toLowerCase();
+        const inv = (bill.invoiceNo || '').toLowerCase();
+        const sData = JSON.stringify(bill.sellerData || {}).toLowerCase();
+        const bData = JSON.stringify(bill.buyerData || {}).toLowerCase();
+        const itemsStr = (bill.items || []).map(i => `${i.name || ''} ${i.generic_name || ''} ${i.batch_no || i.batchNo || ''}`).join(' ').toLowerCase();
+
+        const match = dist.includes(searchTerm) ||
+                      inv.includes(searchTerm) ||
+                      sData.includes(searchTerm) ||
+                      bData.includes(searchTerm) ||
+                      itemsStr.includes(searchTerm);
+        if (!match) return false;
+      }
+
+      return true;
+    });
+
+    // Sorting
+    filtered.sort((a, b) => {
+      if (sortVal === 'bill_date_desc') {
+        return (b.date || '').localeCompare(a.date || '');
+      } else if (sortVal === 'bill_date_asc') {
+        return (a.date || '').localeCompare(b.date || '');
+      } else if (sortVal === 'added_desc') {
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      } else if (sortVal === 'amount_desc') {
+        return (b.totalAmount || 0) - (a.totalAmount || 0);
+      } else if (sortVal === 'amount_asc') {
+        return (a.totalAmount || 0) - (b.totalAmount || 0);
+      } else if (sortVal === 'supplier_asc') {
+        return (a.distributor || '').localeCompare(b.distributor || '');
+      }
+      return 0;
+    });
+
+    if (billResultsCount) {
+      billResultsCount.textContent = `${filtered.length} bill${filtered.length === 1 ? '' : 's'}`;
+    }
+
+    if (filtered.length === 0) {
+      billHistoryGrid.innerHTML = '';
+      if (billHistoryNoResultsState) billHistoryNoResultsState.hidden = false;
+      return;
+    }
+
+    if (billHistoryNoResultsState) billHistoryNoResultsState.hidden = true;
+
+    billHistoryGrid.innerHTML = filtered.map(bill => {
+      const dist = bill.distributor || 'General Stockist';
+      const invNo = bill.invoiceNo || '—';
+      const bDate = bill.date || '—';
+      const amount = bill.totalAmount || 0;
+      const sData = bill.sellerData || {};
+      const place = sData.city || sData.state || sData.location || '';
+      const gstin = sData.gstin || sData.gst_no || '';
+      const dlNo = sData.dl_no || sData.dl_number || '';
+      const itemsCount = bill.itemsCount || (bill.items ? bill.items.length : 1);
+      const addedTime = bill.createdAt ? new Date(bill.createdAt * 1000).toLocaleDateString() : (bill.timestamp || 'Recent');
+
+      // Generate medicines preview chips
+      let medChipsHtml = '';
+      if (bill.items && bill.items.length > 0) {
+        const topMeds = bill.items.slice(0, 3);
+        medChipsHtml = topMeds.map(m => `<span class="med-chip" title="${escapeHtml(m.name || m.medicine_name)}">${escapeHtml(m.name || m.medicine_name)}</span>`).join('');
+        if (bill.items.length > 3) {
+          medChipsHtml += `<span class="med-chip-more">+${bill.items.length - 3} more</span>`;
+        }
+      }
+
+      return `
+        <div class="bill-history-card" onclick="window.openBillDetail('${escapeHtml(bill.id)}')">
+          <div class="bill-card-top">
+            <div class="bill-card-supplier-info">
+              <div class="bill-avatar-badge">🏢</div>
+              <div style="min-width: 0;">
+                <div class="bill-distributor-heading" title="${escapeHtml(dist)}">${escapeHtml(dist)}</div>
+                <div class="bill-meta-sub">
+                  <span>Inv: <strong class="mono-badge">#${escapeHtml(invNo)}</strong></span>
+                  <span>•</span>
+                  <span>📅 ${escapeHtml(bDate)}</span>
+                  ${place ? `<span>•</span><span class="place-tag">📍 ${escapeHtml(place)}</span>` : ''}
+                </div>
+              </div>
+            </div>
+            <div class="bill-card-amount-box">
+              <div class="bill-amount-val">₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div class="bill-items-count-pill">${itemsCount} item${itemsCount === 1 ? '' : 's'}</div>
+            </div>
+          </div>
+
+          ${(gstin || dlNo) ? `
+            <div class="bill-compliance-chips">
+              ${gstin ? `<span class="compliance-chip">GST: ${escapeHtml(gstin)}</span>` : ''}
+              ${dlNo ? `<span class="compliance-chip">DL: ${escapeHtml(dlNo)}</span>` : ''}
+            </div>
+          ` : ''}
+
+          ${medChipsHtml ? `
+            <div class="bill-med-preview-row">
+              <span class="med-preview-label">Meds:</span>
+              <div class="med-preview-tags">${medChipsHtml}</div>
+            </div>
+          ` : ''}
+
+          <div class="bill-card-footer">
+            <span style="font-size: 0.725rem; color: var(--color-text-muted);">Added: ${escapeHtml(addedTime)}</span>
+            <button type="button" class="btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.65rem;" onclick="event.stopPropagation(); window.openBillDetail('${escapeHtml(bill.id)}')">
+              View Bill ↗
+            </button>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:1rem;">
-          <div style="text-align: right;">
-            <strong style="font-family: var(--font-mono); font-size: 0.95rem;">₹${bill.totalAmount.toLocaleString('en-IN')}</strong>
-            <div style="font-size: 0.75rem; color: #059669; font-weight: 600;">${bill.itemsCount} medicines added</div>
-          </div>
-          ${bill.originalFileUrl ? `<a href="${bill.originalFileUrl}" target="_blank" class="btn-secondary" style="height:28px; font-size:0.75rem; padding:0 0.5rem;">View Original ↗</a>` : ''}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   };
+
+  window.openBillDetail = async (billId) => {
+    if (!billDetailModal) return;
+
+    let bill = pharmacyDb.bills.find(b => b.id === billId);
+
+    // If items missing or need full authoritative record, fetch from backend
+    if (!bill || !bill.items || bill.items.length === 0) {
+      try {
+        const res = await authenticatedFetch(`${API_BASE_URL}/api/bills/${encodeURIComponent(billId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.bill) {
+            bill = {
+              id: data.bill.id,
+              distributor: data.bill.distributor,
+              invoiceNo: data.bill.invoice_no,
+              date: data.bill.invoice_date,
+              totalAmount: data.bill.total_amount,
+              originalFileUrl: data.bill.original_file_path,
+              fileName: data.bill.file_name,
+              sellerData: data.bill.seller_data || {},
+              buyerData: data.bill.buyer_data || {},
+              taxesData: data.bill.taxes_data || {},
+              itemsCount: data.bill.items_count || (data.bill.items ? data.bill.items.length : 1),
+              items: data.bill.items || [],
+              createdAt: data.bill.created_at
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Could not fetch single bill from backend:', e);
+      }
+    }
+
+    if (!bill) {
+      alert('Invoice details could not be found.');
+      return;
+    }
+
+    // Populate distributor info
+    const sData = bill.sellerData || {};
+    const distNameEl = document.getElementById('billDetailDistributorName');
+    const distAddrEl = document.getElementById('billDetailDistributorAddress');
+    const distLocEl = document.getElementById('billDetailDistributorLocation');
+    const distGstinEl = document.getElementById('billDetailDistributorGstin');
+    const distDlEl = document.getElementById('billDetailDistributorDl');
+
+    if (distNameEl) distNameEl.textContent = bill.distributor || 'General Stockist';
+    if (distAddrEl) distAddrEl.textContent = sData.address || sData.shop_address || 'Address not specified';
+    if (distLocEl) distLocEl.textContent = [sData.city, sData.state, sData.pincode].filter(Boolean).join(', ') || 'Location not specified';
+    if (distGstinEl) {
+      distGstinEl.textContent = sData.gstin || sData.gst_no ? `GSTIN: ${sData.gstin || sData.gst_no}` : '';
+      distGstinEl.hidden = !distGstinEl.textContent;
+    }
+    if (distDlEl) {
+      distDlEl.textContent = sData.dl_no || sData.dl_number ? `D.L. No: ${sData.dl_no || sData.dl_number}` : '';
+      distDlEl.hidden = !distDlEl.textContent;
+    }
+
+    // Populate invoice summary
+    const invNoEl = document.getElementById('billDetailInvoiceNo');
+    const billDateEl = document.getElementById('billDetailBillDate');
+    const ingestedDateEl = document.getElementById('billDetailIngestedDate');
+    const totalAmountEl = document.getElementById('billDetailTotalAmount');
+
+    if (invNoEl) invNoEl.textContent = `#${bill.invoiceNo || '—'}`;
+    if (billDateEl) billDateEl.textContent = bill.date || '—';
+    if (ingestedDateEl) ingestedDateEl.textContent = bill.createdAt ? new Date(bill.createdAt * 1000).toLocaleString() : (bill.timestamp || '—');
+    if (totalAmountEl) totalAmountEl.textContent = `₹${(bill.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    // Populate document actions & preview
+    const docUrlView = getBillDocumentUrl(bill, false);
+    const docUrlDownload = getBillDocumentUrl(bill, true);
+    const openDocBtn = document.getElementById('billDetailOpenDocBtn');
+    const downloadDocBtn = document.getElementById('billDetailDownloadDocBtn');
+    const docTypeBadge = document.getElementById('billDetailDocTypeBadge');
+    const docImg = document.getElementById('billDetailDocImg');
+    const docLoading = document.getElementById('billDetailDocLoading');
+    const docPdfFallback = document.getElementById('billDetailDocPdfFallback');
+    const docEmptyFallback = document.getElementById('billDetailDocEmptyFallback');
+
+    if (openDocBtn) openDocBtn.href = docUrlView;
+    if (downloadDocBtn) {
+      downloadDocBtn.href = docUrlDownload;
+      downloadDocBtn.download = bill.fileName || `Invoice_${bill.invoiceNo || bill.id}.pdf`;
+    }
+
+    const isPdf = (bill.fileName && bill.fileName.toLowerCase().endsWith('.pdf')) || (bill.originalFileUrl && bill.originalFileUrl.toLowerCase().includes('.pdf'));
+
+    if (docTypeBadge) {
+      docTypeBadge.textContent = isPdf ? 'PDF DOCUMENT' : 'IMAGE FILE';
+    }
+
+    if (docLoading) docLoading.style.display = 'block';
+    if (docImg) docImg.style.display = 'none';
+    if (docPdfFallback) docPdfFallback.style.display = 'none';
+    if (docEmptyFallback) docEmptyFallback.style.display = 'none';
+
+    if (!docUrlView || docUrlView === '#') {
+      if (docLoading) docLoading.style.display = 'none';
+      if (docEmptyFallback) docEmptyFallback.style.display = 'block';
+    } else if (isPdf) {
+      if (docLoading) docLoading.style.display = 'none';
+      if (docPdfFallback) docPdfFallback.style.display = 'block';
+    } else {
+      if (docImg) {
+        docImg.onload = () => {
+          if (docLoading) docLoading.style.display = 'none';
+          docImg.style.display = 'block';
+        };
+        docImg.onerror = () => {
+          if (docLoading) docLoading.style.display = 'none';
+          if (docPdfFallback) docPdfFallback.style.display = 'block';
+        };
+        docImg.src = docUrlView;
+      }
+    }
+
+    // Populate line items
+    const itemsTbody = document.getElementById('billDetailItemsTableBody');
+    const itemsCountEl = document.getElementById('billDetailItemsCount');
+    const items = bill.items || [];
+    if (itemsCountEl) itemsCountEl.textContent = items.length;
+
+    if (itemsTbody) {
+      if (items.length === 0) {
+        itemsTbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 1rem;">No individual line item details recorded.</td></tr>`;
+      } else {
+        itemsTbody.innerHTML = items.map((item, idx) => {
+          const qty = item.quantity || 1;
+          const rate = item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : (item.purchaseRate || 0);
+          const mrp = item.mrp !== undefined && item.mrp !== null ? item.mrp : rate;
+          const total = qty * rate;
+
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>
+                <strong>${escapeHtml(item.name || item.medicine_name || '—')}</strong>
+                ${item.generic_name ? `<div style="font-size:0.7rem; color:var(--color-text-muted);">${escapeHtml(item.generic_name)}</div>` : ''}
+              </td>
+              <td>${escapeHtml(item.pack || '—')}</td>
+              <td><span class="table-batch-pill">${escapeHtml(item.batch_no || item.batchNo || '—')}</span></td>
+              <td><strong>${escapeHtml(item.expiry_date || item.expiryDate || '—')}</strong></td>
+              <td><strong>${qty}</strong></td>
+              <td>₹${Number(rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td>₹${Number(mrp).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td><strong style="font-family: var(--font-mono); color: var(--brand-primary);">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    billDetailModal.classList.remove('view-hidden');
+    billDetailModal.classList.add('view-active');
+  };
+
+  const closeBillDetailModal = () => {
+    if (!billDetailModal) return;
+    billDetailModal.classList.remove('view-active');
+    billDetailModal.classList.add('view-hidden');
+    const docImg = document.getElementById('billDetailDocImg');
+    if (docImg) docImg.src = '';
+  };
+
+  if (closeBillDetailModalBtn) closeBillDetailModalBtn.addEventListener('click', closeBillDetailModal);
+  if (bottomCloseBillDetailModalBtn) bottomCloseBillDetailModalBtn.addEventListener('click', closeBillDetailModal);
+  if (billDetailModalBackdrop) billDetailModalBackdrop.addEventListener('click', closeBillDetailModal);
+
+  // Search input with debouncing to backend /api/bills/search
+  if (billHistorySearchInput) {
+    billHistorySearchInput.addEventListener('input', () => {
+      const q = billHistorySearchInput.value.trim();
+      clearTimeout(billSearchDebounceTimer);
+      if (!q) {
+        serverSearchedBills = null;
+        renderBillHistoryView();
+        return;
+      }
+      billSearchDebounceTimer = setTimeout(async () => {
+        try {
+          const res = await authenticatedFetch(`${API_BASE_URL}/api/bills/search?q=${encodeURIComponent(q)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.bills) {
+              serverSearchedBills = data.bills.map(b => ({
+                id: b.id,
+                distributor: b.distributor,
+                invoiceNo: b.invoice_no,
+                date: b.invoice_date,
+                totalAmount: b.total_amount,
+                originalFileUrl: b.original_file_path,
+                fileName: b.file_name,
+                sellerData: b.seller_data || {},
+                buyerData: b.buyer_data || {},
+                taxesData: b.taxes_data || {},
+                itemsCount: b.items_count || (b.items ? b.items.length : 1),
+                items: b.items || [],
+                createdAt: b.created_at
+              }));
+              renderBillHistoryView();
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Backend search error, falling back to local search:', e);
+        }
+        serverSearchedBills = null;
+        renderBillHistoryView();
+      }, 250);
+    });
+  }
+
+  if (billHistoryClearSearchBtn) {
+    billHistoryClearSearchBtn.addEventListener('click', () => {
+      if (billHistorySearchInput) billHistorySearchInput.value = '';
+      serverSearchedBills = null;
+      renderBillHistoryView();
+    });
+  }
+
+  if (billRemoveQueryPill) {
+    billRemoveQueryPill.addEventListener('click', () => {
+      if (billHistorySearchInput) billHistorySearchInput.value = '';
+      serverSearchedBills = null;
+      renderBillHistoryView();
+    });
+  }
+
+  if (resetBillSearchBtn) {
+    resetBillSearchBtn.addEventListener('click', () => {
+      if (billHistorySearchInput) billHistorySearchInput.value = '';
+      if (billHistoryDateFilter) billHistoryDateFilter.value = 'all';
+      if (billHistorySortSelect) billHistorySortSelect.value = 'bill_date_desc';
+      serverSearchedBills = null;
+      renderBillHistoryView();
+    });
+  }
+
+  if (billHistoryDateFilter) billHistoryDateFilter.addEventListener('change', renderBillHistoryView);
+  if (billHistorySortSelect) billHistorySortSelect.addEventListener('change', renderBillHistoryView);
+
+  if (billHistoryUploadBtn) billHistoryUploadBtn.addEventListener('click', () => switchWorkspaceTab('bills'));
+  if (emptyStateUploadBillBtn) emptyStateUploadBillBtn.addEventListener('click', () => switchWorkspaceTab('bills'));
 
   const inventorySearchInput = document.getElementById('inventorySearchInput');
   const inventoryExpiryFilter = document.getElementById('inventoryExpiryFilter');
@@ -2469,6 +2957,9 @@ document.addEventListener('DOMContentLoaded', () => {
         invoice_no: currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'UNSPECIFIED',
         invoice_date: currentCapturedBill.invoice_date || currentCapturedBill.date || new Date().toISOString().split('T')[0],
         original_file_url: currentCapturedBill.original_file_url || '',
+        seller_data: currentCapturedBill.seller_data || currentCapturedBill.sellerData || null,
+        buyer_data: currentCapturedBill.buyer_data || currentCapturedBill.buyerData || null,
+        taxes_data: currentCapturedBill.taxes_data || currentCapturedBill.taxesData || null,
         items: currentCapturedBill.items.map(item => {
           const pRate = parseFloat(item.purchase_rate !== undefined && item.purchase_rate !== null ? item.purchase_rate : item.purchaseRate) || 0;
           const rawMrp = item.mrp !== undefined && item.mrp !== null ? parseFloat(item.mrp) : null;
@@ -2486,11 +2977,29 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       try {
-        const res = await authenticatedFetch(`${API_BASE_URL}/api/bills/confirm`, {
+        let res = await authenticatedFetch(`${API_BASE_URL}/api/bills/confirm`, {
           method: 'POST',
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
+        let data = await res.json();
+
+        if (res.status === 409 || data.possible_duplicate) {
+          ocrConfirmSaveBtn.disabled = false;
+          ocrConfirmSaveBtn.textContent = 'Confirm & Add to Inventory →';
+          const proceed = confirm(`⚠️ Duplicate Bill Warning\n\n${data.error || 'A bill from this supplier with the same invoice number has already been recorded.'}\n\nDo you want to confirm and save this invoice anyway?`);
+          if (proceed) {
+            payload.allow_duplicate = true;
+            ocrConfirmSaveBtn.disabled = true;
+            ocrConfirmSaveBtn.textContent = 'Saving duplicate record…';
+            res = await authenticatedFetch(`${API_BASE_URL}/api/bills/confirm`, {
+              method: 'POST',
+              body: JSON.stringify(payload)
+            });
+            data = await res.json();
+          } else {
+            return;
+          }
+        }
 
         ocrConfirmSaveBtn.disabled = false;
         ocrConfirmSaveBtn.textContent = 'Confirm & Add to Inventory →';
@@ -2505,6 +3014,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pharmacyDb.batches.push({
             id: 'B_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             name: item.name,
+            generic_name: item.generic_name || null,
             pack: item.pack,
             batchNo: item.batch_no,
             expiryDate: item.expiry_date,
@@ -2517,7 +3027,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           pharmacyDb.movements.unshift({
-            id: 'MOV_' + Date.now(),
+            id: 'MOV_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             timestamp: 'Just now',
             type: 'Purchased',
             medicineName: item.name,
@@ -2535,7 +3045,13 @@ document.addEventListener('DOMContentLoaded', () => {
           date: payload.invoice_date,
           totalAmount: data.total_amount || 0,
           itemsCount: payload.items.length,
-          originalFileUrl: payload.original_file_url,
+          originalFileUrl: payload.original_file_url || (data.bill_id ? `/api/bills/${data.bill_id}/document` : ''),
+          fileName: currentCapturedBill.file_name || null,
+          sellerData: payload.seller_data || {},
+          buyerData: payload.buyer_data || {},
+          taxesData: payload.taxes_data || {},
+          items: payload.items,
+          createdAt: Math.floor(Date.now() / 1000),
           timestamp: 'Just now'
         });
 

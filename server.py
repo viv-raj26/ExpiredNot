@@ -15,6 +15,7 @@ import threading
 import urllib.request
 import urllib.parse
 import mimetypes
+import uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from email.message import EmailMessage
 
@@ -125,7 +126,25 @@ def init_db():
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         ''')
-        
+
+        # Bill Original Documents Persistent BLOB Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bill_documents (
+                bill_id TEXT PRIMARY KEY,
+                user_id TEXT,
+                file_name TEXT,
+                file_mime TEXT,
+                file_data BLOB NOT NULL,
+                file_size INTEGER,
+                file_hash TEXT,
+                created_at INTEGER NOT NULL
+            )
+        ''')
+        try:
+            cursor.execute("ALTER TABLE bill_documents ADD COLUMN file_hash TEXT")
+        except Exception:
+            pass
+
         # Batches Table (Real Inventory)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS batches (
@@ -911,6 +930,13 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             cookie = self.headers.get('Cookie', '')
             if 'exp_session=' in cookie:
                 token = cookie.split('exp_session=')[1].split(';')[0].strip()
+
+        if not token and hasattr(self, 'path') and '?' in self.path:
+            try:
+                q_parsed = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                token = q_parsed.get('token', [''])[0].strip() or None
+            except Exception:
+                token = None
                 
         if not token:
             return None
@@ -977,8 +1003,282 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT * FROM bills WHERE user_id = ? ORDER BY created_at DESC", (user['id'],))
-                bills = [dict(r) for r in cursor.fetchall()]
+                raw_bills = [dict(r) for r in cursor.fetchall()]
+                
+                cursor.execute("SELECT * FROM batches WHERE user_id = ? ORDER BY rowid ASC", (user['id'],))
+                all_batches = [dict(r) for r in cursor.fetchall()]
+                
+                batches_by_bill = {}
+                for b in all_batches:
+                    b_id = b.get('bill_id')
+                    if b_id:
+                        batches_by_bill.setdefault(b_id, []).append(b)
+                
+                bills = []
+                for rb in raw_bills:
+                    b_id = rb['id']
+                    seller_parsed = None
+                    if rb.get('seller_data'):
+                        try:
+                            seller_parsed = json.loads(rb['seller_data']) if isinstance(rb['seller_data'], str) else rb['seller_data']
+                        except Exception:
+                            seller_parsed = rb['seller_data']
+                    
+                    buyer_parsed = None
+                    if rb.get('buyer_data'):
+                        try:
+                            buyer_parsed = json.loads(rb['buyer_data']) if isinstance(rb['buyer_data'], str) else rb['buyer_data']
+                        except Exception:
+                            buyer_parsed = rb['buyer_data']
+
+                    taxes_parsed = None
+                    if rb.get('taxes_data'):
+                        try:
+                            taxes_parsed = json.loads(rb['taxes_data']) if isinstance(rb['taxes_data'], str) else rb['taxes_data']
+                        except Exception:
+                            taxes_parsed = rb['taxes_data']
+
+                    b_items = batches_by_bill.get(b_id, [])
+                    bills.append({
+                        **rb,
+                        "seller_data": seller_parsed,
+                        "buyer_data": buyer_parsed,
+                        "taxes_data": taxes_parsed,
+                        "items_count": len(b_items),
+                        "items": b_items
+                    })
             return self._send_json({"bills": bills})
+
+        elif path == '/api/bills/search':
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+            
+            q_params = urllib.parse.parse_qs(url_parsed.query)
+            q = q_params.get('q', [''])[0].strip()
+            if not q:
+                return self._send_json({"bills": []})
+            
+            search_pattern = f"%{q}%"
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT DISTINCT b.id, b.user_id, b.distributor, b.seller_data, b.buyer_data,
+                                    b.invoice_no, b.invoice_date, b.total_amount, b.taxes_data,
+                                    b.original_file_path, b.file_name, b.file_type, b.created_at
+                    FROM bills b
+                    LEFT JOIN batches ba ON b.id = ba.bill_id
+                    WHERE b.user_id = ? AND (
+                        b.distributor LIKE ? OR
+                        b.invoice_no LIKE ? OR
+                        b.seller_data LIKE ? OR
+                        b.buyer_data LIKE ? OR
+                        ba.name LIKE ? OR
+                        ba.generic_name LIKE ? OR
+                        ba.batch_no LIKE ?
+                    )
+                    ORDER BY b.created_at DESC
+                ''', (user['id'], search_pattern, search_pattern, search_pattern, search_pattern, search_pattern, search_pattern, search_pattern))
+                raw_bills = [dict(r) for r in cursor.fetchall()]
+                
+                cursor.execute("SELECT * FROM batches WHERE user_id = ? ORDER BY rowid ASC", (user['id'],))
+                all_batches = [dict(r) for r in cursor.fetchall()]
+                batches_by_bill = {}
+                for b in all_batches:
+                    b_id = b.get('bill_id')
+                    if b_id:
+                        batches_by_bill.setdefault(b_id, []).append(b)
+                
+                bills = []
+                for rb in raw_bills:
+                    b_id = rb['id']
+                    seller_parsed = None
+                    if rb.get('seller_data'):
+                        try:
+                            seller_parsed = json.loads(rb['seller_data']) if isinstance(rb['seller_data'], str) else rb['seller_data']
+                        except Exception:
+                            seller_parsed = rb['seller_data']
+                    
+                    buyer_parsed = None
+                    if rb.get('buyer_data'):
+                        try:
+                            buyer_parsed = json.loads(rb['buyer_data']) if isinstance(rb['buyer_data'], str) else rb['buyer_data']
+                        except Exception:
+                            buyer_parsed = rb['buyer_data']
+
+                    taxes_parsed = None
+                    if rb.get('taxes_data'):
+                        try:
+                            taxes_parsed = json.loads(rb['taxes_data']) if isinstance(rb['taxes_data'], str) else rb['taxes_data']
+                        except Exception:
+                            taxes_parsed = rb['taxes_data']
+
+                    b_items = batches_by_bill.get(b_id, [])
+                    bills.append({
+                        **rb,
+                        "seller_data": seller_parsed,
+                        "buyer_data": buyer_parsed,
+                        "taxes_data": taxes_parsed,
+                        "items_count": len(b_items),
+                        "items": b_items
+                    })
+            return self._send_json({"bills": bills, "query": q})
+
+        elif path.startswith('/api/bills/') and (path.endswith('/document') or path.endswith('/file')):
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+            
+            parts = path.strip('/').split('/')
+            target_bill_id = parts[2] if len(parts) >= 3 else ''
+            if not target_bill_id:
+                return self._send_json({"error": "Invalid bill document ID."}, 400)
+
+            q_params = urllib.parse.parse_qs(url_parsed.query)
+            is_download = q_params.get('download', ['0'])[0] in ('1', 'true', 'yes')
+
+            file_data = None
+            file_mime = 'application/octet-stream'
+            file_name = f"{target_bill_id}.jpg"
+
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM bill_documents 
+                    WHERE bill_id = ? AND (user_id = ? OR user_id = 'PENDING' OR user_id = 'GUEST')
+                ''', (target_bill_id, user['id']))
+                doc_row = cursor.fetchone()
+
+                if doc_row:
+                    file_data = doc_row['file_data']
+                    file_mime = doc_row['file_mime'] or 'image/jpeg'
+                    file_name = doc_row['file_name'] or f"{target_bill_id}.jpg"
+                else:
+                    cursor.execute("SELECT * FROM bills WHERE id = ? AND user_id = ?", (target_bill_id, user['id']))
+                    bill_row = cursor.fetchone()
+                    if not bill_row:
+                        return self._send_json({"error": "Bill document not found or access denied."}, 404)
+                    
+                    disk_files = [f for f in os.listdir(UPLOADS_DIR) if f.startswith(target_bill_id)] if os.path.exists(UPLOADS_DIR) else []
+                    if disk_files:
+                        disk_path = os.path.join(UPLOADS_DIR, disk_files[0])
+                        with open(disk_path, 'rb') as f:
+                            file_data = f.read()
+                        file_name = bill_row['file_name'] or disk_files[0]
+                        file_mime, _ = mimetypes.guess_type(disk_path)
+                        if not file_mime:
+                            file_mime = 'image/jpeg'
+
+            if not file_data:
+                return self._send_json({"error": "Original bill document file is not available."}, 404)
+
+            disposition_type = 'attachment' if is_download else 'inline'
+            safe_filename = urllib.parse.quote(file_name)
+
+            self.send_response(200)
+            self.send_header('Content-Type', file_mime)
+            self.send_header('Content-Length', str(len(file_data)))
+            self.send_header('Content-Disposition', f'{disposition_type}; filename="{file_name}"; filename*=UTF-8\'\'{safe_filename}')
+            self.send_header('Cache-Control', 'private, max-age=86400')
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(file_data)
+            return
+
+        elif path.startswith('/uploads/bills/'):
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+            
+            req_filename = path.split('/uploads/bills/', 1)[1].strip()
+            bill_prefix = os.path.splitext(req_filename)[0]
+
+            file_data = None
+            file_mime = 'image/jpeg'
+            file_name = req_filename
+
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM bill_documents 
+                    WHERE (bill_id = ? OR file_name = ?) AND (user_id = ? OR user_id = 'PENDING' OR user_id = 'GUEST')
+                ''', (bill_prefix, req_filename, user['id']))
+                doc_row = cursor.fetchone()
+
+                if doc_row:
+                    file_data = doc_row['file_data']
+                    file_mime = doc_row['file_mime'] or 'image/jpeg'
+                    file_name = doc_row['file_name'] or req_filename
+                else:
+                    disk_path = os.path.join(UPLOADS_DIR, req_filename)
+                    if os.path.isfile(disk_path):
+                        cursor.execute("SELECT * FROM bills WHERE user_id = ? AND (original_file_path LIKE ? OR file_name = ?)", (user['id'], f"%{req_filename}%", req_filename))
+                        if not cursor.fetchone():
+                            return self._send_json({"error": "Access denied."}, 403)
+                        with open(disk_path, 'rb') as f:
+                            file_data = f.read()
+                        file_mime, _ = mimetypes.guess_type(disk_path)
+                        file_mime = file_mime or 'image/jpeg'
+
+            if not file_data:
+                return self._send_json({"error": "File not found or access denied."}, 404)
+
+            self.send_response(200)
+            self.send_header('Content-Type', file_mime)
+            self.send_header('Content-Length', str(len(file_data)))
+            self.send_header('Content-Disposition', f'inline; filename="{file_name}"')
+            self.send_header('Cache-Control', 'private, max-age=86400')
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(file_data)
+            return
+
+        elif path.startswith('/api/bills/') and len(path) > len('/api/bills/'):
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized"}, 401)
+            target_bill_id = path.split('/api/bills/', 1)[1].strip()
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM bills WHERE id = ? AND user_id = ?", (target_bill_id, user['id']))
+                row = cursor.fetchone()
+                if not row:
+                    return self._send_json({"error": "Bill not found."}, 404)
+                
+                rb = dict(row)
+                seller_parsed = None
+                if rb.get('seller_data'):
+                    try:
+                        seller_parsed = json.loads(rb['seller_data']) if isinstance(rb['seller_data'], str) else rb['seller_data']
+                    except Exception:
+                        seller_parsed = rb['seller_data']
+                
+                buyer_parsed = None
+                if rb.get('buyer_data'):
+                    try:
+                        buyer_parsed = json.loads(rb['buyer_data']) if isinstance(rb['buyer_data'], str) else rb['buyer_data']
+                    except Exception:
+                        buyer_parsed = rb['buyer_data']
+
+                taxes_parsed = None
+                if rb.get('taxes_data'):
+                    try:
+                        taxes_parsed = json.loads(rb['taxes_data']) if isinstance(rb['taxes_data'], str) else rb['taxes_data']
+                    except Exception:
+                        taxes_parsed = rb['taxes_data']
+
+                cursor.execute("SELECT * FROM batches WHERE bill_id = ? AND user_id = ? ORDER BY rowid ASC", (target_bill_id, user['id']))
+                items = [dict(r) for r in cursor.fetchall()]
+                
+                bill_data = {
+                    **rb,
+                    "seller_data": seller_parsed,
+                    "buyer_data": buyer_parsed,
+                    "taxes_data": taxes_parsed,
+                    "items_count": len(items),
+                    "items": items
+                }
+            return self._send_json({"bill": bill_data, "items": items})
 
         elif path == '/api/analytics':
             user = self._get_auth_user()
@@ -1106,22 +1406,52 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 elif ext == '.webp':
                     file_mime = 'image/webp'
                 
-                # Save original file permanently in uploads/bills/
-                bill_id = f"BILL_{int(time.time())}_{secrets.token_hex(4)}"
+                # Generate persistent identifiers and SHA-256 hash
+                file_hash = hashlib.sha256(file_bytes).hexdigest()
+                bill_id = req_data.get('bill_id') if isinstance(req_data, dict) and req_data.get('bill_id') else f"BILL_{uuid.uuid4().hex}"
                 saved_filename = f"{bill_id}{ext}"
                 saved_path = os.path.join(UPLOADS_DIR, saved_filename)
                 
-                with open(saved_path, 'wb') as sf:
-                    sf.write(file_bytes)
+                try:
+                    with open(saved_path, 'wb') as sf:
+                        sf.write(file_bytes)
+                except Exception:
+                    pass
                 
-                relative_file_url = f"/uploads/bills/{saved_filename}"
-                print(f"[BILL UPLOAD] Successfully received invoice: filename='{file_name}', mime='{file_mime}', size={len(file_bytes)} bytes, saved_as='{saved_filename}'")
+                # Persistent BLOB storage in SQLite
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO bill_documents (bill_id, user_id, file_name, file_mime, file_data, file_size, file_hash, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (bill_id, user['id'] if user else 'PENDING', file_name, file_mime, file_bytes, len(file_bytes), file_hash, int(time.time())))
+                    conn.commit()
+
+                relative_file_url = f"/api/bills/{bill_id}/document"
+                print(f"[BILL UPLOAD] Saved document '{file_name}' ({len(file_bytes)} bytes, hash: {file_hash[:8]}...) as BLOB for {bill_id}")
                 
                 # Analyze via Gemini Multimodal Document AI
                 extracted_data = call_gemini_multimodal_bill_parser(file_bytes, file_mime)
                 extracted_data["bill_id"] = bill_id
                 extracted_data["original_file_url"] = relative_file_url
                 extracted_data["file_name"] = file_name
+                extracted_data["file_type"] = ext.lstrip('.')
+                extracted_data["file_hash"] = file_hash
+
+                # Level 1 Duplicate Detection: Exact File Hash Match for authenticated pharmacy
+                if user:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            SELECT b.id, b.invoice_no, b.distributor, b.invoice_date, b.total_amount, b.created_at
+                            FROM bill_documents bd
+                            JOIN bills b ON bd.bill_id = b.id
+                            WHERE bd.user_id = ? AND bd.file_hash = ? AND bd.bill_id != ?
+                        ''', (user['id'], file_hash, bill_id))
+                        exact_dup = cursor.fetchone()
+                        if exact_dup:
+                            extracted_data["exact_duplicate_detected"] = True
+                            extracted_data["existing_bill"] = dict(exact_dup)
                 
                 return self._send_json(extracted_data)
                 
@@ -1595,7 +1925,8 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             invoice_no = (req_data.get('invoice_no') or 'UNSPECIFIED').strip()
             invoice_date = req_data.get('invoice_date') or time.strftime('%Y-%m-%d')
             items = req_data.get('items', [])
-            original_file_url = req_data.get('original_file_url', '')
+            bill_id = req_data.get('bill_id') or f"BILL_{uuid.uuid4().hex}"
+            original_file_url = req_data.get('original_file_url') or f"/api/bills/{bill_id}/document"
             
             if not items:
                 return self._send_json({"error": "Cannot confirm bill with zero line items."}, 400)
@@ -1612,56 +1943,117 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 if not i_exp:
                     return self._send_json({"error": f"Item '{i_name}' is missing an expiry date."}, 400)
                 
-            bill_id = req_data.get('bill_id') or f"BILL_{int(time.time())}_{secrets.token_hex(4)}"
             now = int(time.time())
             total_bill_amount = sum(float(i.get('quantity', 0)) * float(i.get('purchase_rate', 0)) for i in items)
             
-            with get_db() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute('''
-                    INSERT OR REPLACE INTO bills (id, user_id, distributor, invoice_no, invoice_date, total_amount, original_file_path, file_name, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (bill_id, user['id'], distributor, invoice_no, invoice_date, total_bill_amount, original_file_url, os.path.basename(original_file_url), now))
-                
-                for idx, item in enumerate(items):
-                    batch_id = f"B_{now}_{idx}_{secrets.token_hex(3)}"
-                    name = item.get('name', '').strip()
-                    if not name:
-                        continue
-                    pack = item.get('pack') or 'Standard'
-                    batch_no = (item.get('batch_no') or item.get('batchNo') or '').strip().upper()
-                    expiry_date = (item.get('expiry_date') or item.get('expiryDate') or '').strip()
-                    qty = float(item.get('quantity', 1))
-                    rate = float(item.get('purchase_rate', 0))
-                    raw_mrp = item.get('mrp')
-                    mrp = float(raw_mrp) if raw_mrp is not None and str(raw_mrp).strip().lower() not in ('null', 'none', '') else rate
-                    rack = item.get('rack', f"Rack {chr(65 + idx % 4)}-1")
+            seller_data_raw = req_data.get('seller_data')
+            if isinstance(seller_data_raw, dict):
+                seller_data_str = json.dumps(seller_data_raw)
+            elif isinstance(seller_data_raw, str):
+                seller_data_str = seller_data_raw
+            else:
+                s_dict = {}
+                if req_data.get('seller_address'): s_dict['address'] = req_data.get('seller_address')
+                if req_data.get('seller_phone'): s_dict['phone'] = req_data.get('seller_phone')
+                if req_data.get('seller_gstin'): s_dict['gstin'] = req_data.get('seller_gstin')
+                if req_data.get('seller_dl'): s_dict['dl_number'] = req_data.get('seller_dl')
+                if req_data.get('place'): s_dict['place'] = req_data.get('place')
+                if req_data.get('city'): s_dict['city'] = req_data.get('city')
+                if req_data.get('state'): s_dict['state'] = req_data.get('state')
+                seller_data_str = json.dumps(s_dict) if s_dict else None
+
+            buyer_data_raw = req_data.get('buyer_data')
+            buyer_data_str = json.dumps(buyer_data_raw) if isinstance(buyer_data_raw, dict) else (buyer_data_raw if isinstance(buyer_data_raw, str) else None)
+
+            taxes_data_raw = req_data.get('taxes_data')
+            taxes_data_str = json.dumps(taxes_data_raw) if isinstance(taxes_data_raw, dict) else (taxes_data_raw if isinstance(taxes_data_raw, str) else None)
+
+            file_name = req_data.get('file_name') or (os.path.basename(original_file_url) if original_file_url else '')
+            file_type = req_data.get('file_type') or (os.path.splitext(file_name)[1].lstrip('.').lower() if file_name else '')
+
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
                     
+                    # Idempotency / Double Submission Protection
+                    cursor.execute("SELECT id, total_amount, invoice_no FROM bills WHERE id = ? AND user_id = ?", (bill_id, user['id']))
+                    existing_bill = cursor.fetchone()
+                    if existing_bill:
+                        return self._send_json({
+                            "success": True,
+                            "bill_id": bill_id,
+                            "already_confirmed": True,
+                            "items_added": len(items),
+                            "total_amount": existing_bill['total_amount']
+                        })
+
+                    # Level 2 Duplicate Check: Prevent duplicate confirmed bills with identical Supplier & Invoice No unless user explicitly overrides
+                    allow_dup = req_data.get('allow_duplicate', False)
+                    if not allow_dup and invoice_no != 'UNSPECIFIED' and distributor != 'Unspecified Supplier':
+                        cursor.execute('''
+                            SELECT id, invoice_no, distributor FROM bills
+                            WHERE user_id = ? AND UPPER(TRIM(invoice_no)) = ? AND UPPER(TRIM(distributor)) = ? AND id != ?
+                        ''', (user['id'], invoice_no.strip().upper(), distributor.strip().upper(), bill_id))
+                        existing_meta = cursor.fetchone()
+                        if existing_meta:
+                            return self._send_json({
+                                "error": f"A purchase bill from '{distributor}' with Invoice #{invoice_no} already exists in your records.",
+                                "possible_duplicate": True,
+                                "existing_bill_id": existing_meta['id']
+                            }, 409)
+
+                    # Update user_id for stored document in bill_documents
+                    cursor.execute("UPDATE bill_documents SET user_id = ? WHERE bill_id = ?", (user['id'], bill_id))
+
+                    # Insert Bill
                     cursor.execute('''
-                        INSERT INTO batches (id, user_id, bill_id, name, generic_name, pack, batch_no, expiry_date, quantity, purchase_rate, mrp, rack, distributor, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (batch_id, user['id'], bill_id, name, item.get('generic_name'), pack, batch_no, expiry_date, qty, rate, mrp, rack, distributor, now))
+                        INSERT INTO bills (
+                            id, user_id, distributor, seller_data, buyer_data, invoice_no, invoice_date, total_amount, taxes_data, original_file_path, file_name, file_type, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (bill_id, user['id'], distributor, seller_data_str, buyer_data_str, invoice_no, invoice_date, total_bill_amount, taxes_data_str, original_file_url, file_name, file_type, now))
                     
-                    mov_id = f"MOV_{now}_{idx}"
+                    for idx, item in enumerate(items):
+                        batch_id = f"B_{uuid.uuid4().hex}"
+                        name = item.get('name', '').strip()
+                        if not name:
+                            continue
+                        pack = item.get('pack') or 'Standard'
+                        batch_no = (item.get('batch_no') or item.get('batchNo') or '').strip().upper()
+                        expiry_date = (item.get('expiry_date') or item.get('expiryDate') or '').strip()
+                        qty = float(item.get('quantity', 1))
+                        rate = float(item.get('purchase_rate', 0))
+                        raw_mrp = item.get('mrp')
+                        mrp = float(raw_mrp) if raw_mrp is not None and str(raw_mrp).strip().lower() not in ('null', 'none', '') else rate
+                        rack = item.get('rack', f"Rack {chr(65 + idx % 4)}-1")
+                        
+                        cursor.execute('''
+                            INSERT INTO batches (id, user_id, bill_id, name, generic_name, pack, batch_no, expiry_date, quantity, purchase_rate, mrp, rack, distributor, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (batch_id, user['id'], bill_id, name, item.get('generic_name'), pack, batch_no, expiry_date, qty, rate, mrp, rack, distributor, now))
+                        
+                        mov_id = f"MOV_{uuid.uuid4().hex}"
+                        cursor.execute('''
+                            INSERT INTO movements (id, user_id, type, medicine_name, batch_no, quantity, value, notes, created_at)
+                            VALUES (?, ?, 'Purchased', ?, ?, ?, ?, ?, ?)
+                        ''', (mov_id, user['id'], name, batch_no, qty, qty * rate, f"Invoice #{invoice_no}", now))
+                    
+                    notif_id = f"NOTIF_{uuid.uuid4().hex}"
                     cursor.execute('''
-                        INSERT INTO movements (id, user_id, type, medicine_name, batch_no, quantity, value, notes, created_at)
-                        VALUES (?, ?, 'Purchased', ?, ?, ?, ?, ?, ?)
-                    ''', (mov_id, user['id'], name, batch_no, qty, qty * rate, f"Invoice #{invoice_no}", now))
-                
-                cursor.execute('''
-                    INSERT INTO notifications (id, user_id, text, type, is_read, created_at)
-                    VALUES (?, ?, ?, 'bill', 0, ?)
-                ''', (f"NOTIF_{now}", user['id'], f"Purchase Bill #{invoice_no} ({distributor}) added: ₹{total_bill_amount:,.2f}", now))
-                
-                conn.commit()
-                
-            return self._send_json({
-                "success": True,
-                "bill_id": bill_id,
-                "items_added": len(items),
-                "total_amount": total_bill_amount
-            })
+                        INSERT INTO notifications (id, user_id, text, type, is_read, created_at)
+                        VALUES (?, ?, ?, 'bill', 0, ?)
+                    ''', (notif_id, user['id'], f"Purchase Bill #{invoice_no} ({distributor}) added: ₹{total_bill_amount:,.2f}", now))
+                    
+                    conn.commit()
+                    
+                return self._send_json({
+                    "success": True,
+                    "bill_id": bill_id,
+                    "items_added": len(items),
+                    "total_amount": total_bill_amount
+                })
+            except Exception as e:
+                print(f"[BILL CONFIRM ERROR]: {e}", file=sys.stderr)
+                return self._send_json({"error": f"Failed to record purchase bill: {str(e)}"}, 500)
 
         elif path == '/api/profile/update':
             user = self._get_auth_user()
