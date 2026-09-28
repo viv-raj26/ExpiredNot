@@ -1447,39 +1447,118 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   
   const calculateDaysRemaining = (expiryDateStr) => {
-    if (!expiryDateStr) return 999;
-    const now = new Date();
-    let expYear, expMonth, expDay = 28;
+    if (!expiryDateStr || typeof expiryDateStr !== 'string') return 999;
+    const str = expiryDateStr.trim();
+    if (!str) return 999;
 
-    if (expiryDateStr.includes('-')) {
-      const parts = expiryDateStr.split('-');
-      if (parts.length === 2) {
-        expYear = parseInt(parts[0], 10);
-        expMonth = parseInt(parts[1], 10) - 1;
-      } else if (parts.length === 3) {
-        expYear = parseInt(parts[0], 10);
-        expMonth = parseInt(parts[1], 10) - 1;
-        expDay = parseInt(parts[2], 10);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    let expYear = null;
+    let expMonth = null;
+    let expDay = null;
+
+    if (str.includes('-')) {
+      const parts = str.split('-').map(p => parseInt(p, 10));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        // Format: YYYY-MM (e.g. 2026-09) -> End of specified month
+        expYear = parts[0];
+        expMonth = parts[1] - 1;
+        expDay = new Date(expYear, expMonth + 1, 0).getDate();
+      } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        if (parts[0] > 1000) {
+          // Format: YYYY-MM-DD
+          expYear = parts[0];
+          expMonth = parts[1] - 1;
+          expDay = parts[2];
+        } else {
+          // Format: DD-MM-YYYY
+          expDay = parts[0];
+          expMonth = parts[1] - 1;
+          expYear = parts[2];
+        }
       }
-    } else if (expiryDateStr.includes('/')) {
-      const parts = expiryDateStr.split('/');
-      if (parts.length === 2) {
-        expMonth = parseInt(parts[0], 10) - 1;
-        expYear = parseInt(parts[1].length === 2 ? '20' + parts[1] : parts[1], 10);
+    } else if (str.includes('/')) {
+      const parts = str.split('/').map(p => parseInt(p, 10));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        // Format: MM/YY or MM/YYYY
+        expMonth = parts[0] - 1;
+        expYear = parts[1] < 100 ? 2000 + parts[1] : parts[1];
+        expDay = new Date(expYear, expMonth + 1, 0).getDate();
+      } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        if (parts[2] > 1000) {
+          // Format: DD/MM/YYYY
+          expDay = parts[0];
+          expMonth = parts[1] - 1;
+          expYear = parts[2];
+        } else if (parts[0] > 1000) {
+          // Format: YYYY/MM/DD
+          expYear = parts[0];
+          expMonth = parts[1] - 1;
+          expDay = parts[2];
+        }
       }
     }
 
+    if (expYear === null || isNaN(expYear) || expMonth === null || isNaN(expMonth)) {
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        expYear = parsed.getFullYear();
+        expMonth = parsed.getMonth();
+        expDay = parsed.getDate();
+      } else {
+        return 999;
+      }
+    }
+
+    if (expDay === null || isNaN(expDay) || expDay <= 0) {
+      expDay = new Date(expYear, expMonth + 1, 0).getDate();
+    }
+
     const expDate = new Date(expYear, expMonth, expDay);
-    const diff = expDate - now;
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+    const diffMs = expDate.getTime() - today.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
   };
 
   const getRiskDetails = (days) => {
-    if (days <= 0) return { key: 'expired', label: 'Expired', class: 'critical' };
-    if (days <= 30) return { key: 'critical', label: `${days}d left (Critical)`, class: 'critical' };
-    if (days <= 60) return { key: 'warning', label: `${days}d left (Warning)`, class: 'warning' };
-    if (days <= 90) return { key: 'watchlist', label: `${days}d left (Watchlist)`, class: 'watchlist' };
-    return { key: 'safe', label: `${days}d left (Safe)`, class: 'safe' };
+    if (days <= 0) {
+      return {
+        key: 'expired',
+        days: days,
+        label: 'Expired',
+        badgeText: 'Expired',
+        class: 'critical', // RED
+        color: 'red'
+      };
+    }
+    if (days <= 60) {
+      return {
+        key: 'critical',
+        days: days,
+        label: `${days} days left`,
+        badgeText: `${days} days left`,
+        class: 'critical', // RED (0–60 days remaining)
+        color: 'red'
+      };
+    }
+    if (days <= 180) {
+      return {
+        key: 'warning',
+        days: days,
+        label: `${days} days left`,
+        badgeText: `${days} days left`,
+        class: 'warning', // YELLOW (61–180 days remaining)
+        color: 'yellow'
+      };
+    }
+    return {
+      key: 'safe',
+      days: days,
+      label: `${days} days left`,
+      badgeText: `${days} days left`,
+      class: 'safe', // GREEN (> 180 days remaining)
+      color: 'green'
+    };
   };
 
   // Master UI Refresh Function
@@ -1662,14 +1741,19 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    const urgentItems = flattened.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 6);
+    const urgentItems = flattened.sort((a, b) => {
+      if (a.daysLeft !== b.daysLeft) return a.daysLeft - b.daysLeft;
+      return (a.name || '').localeCompare(b.name || '');
+    }).slice(0, 6);
 
     tbody.innerHTML = urgentItems.map(b => {
       const risk = getRiskDetails(b.daysLeft);
-      const atRiskVal = b.quantity * b.purchaseRate;
-      const fefoBadge = b.isEarliest 
-        ? `<span class="fefo-pill urgent">Dispense First (FEFO)</span>`
-        : (b.isHold ? `<span class="fefo-pill" style="background:#f1f5f9;color:#64748b;">Hold (Later Expiry)</span>` : `<span class="fefo-pill">Standard</span>`);
+      const atRiskVal = (parseFloat(b.quantity) || 0) * (parseFloat(b.purchaseRate) || 0);
+      const fefoBadge = b.daysLeft <= 0
+        ? `<span class="fefo-pill urgent" style="background:#fff1f2; color:#be123c; border-color:#fecdd3;">Expired (Do Not Dispense)</span>`
+        : (b.isEarliest 
+          ? `<span class="fefo-pill urgent">Dispense First (FEFO)</span>`
+          : (b.isHold ? `<span class="fefo-pill" style="background:#f1f5f9; color:#64748b;">Hold (Later Expiry)</span>` : `<span class="fefo-pill">Priority 1 (FEFO)</span>`));
 
       return `
         <tr>
@@ -1682,7 +1766,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span style="font-family: var(--font-mono);">${b.expiryDate}</span></td>
           <td><span class="risk-pill ${risk.class}">${risk.label}</span></td>
           <td>${fefoBadge}</td>
-          <td><strong>₹${atRiskVal.toLocaleString('en-IN')}</strong></td>
+          <td><strong>₹${atRiskVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
           <td>
             <button type="button" class="btn-secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.5rem;" onclick="window.quickReturn('${b.id}')">
               Return Claim
@@ -1787,21 +1871,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (query) {
       batches = batches.filter(b => 
-        b.name.toLowerCase().includes(query) ||
-        b.batchNo.toLowerCase().includes(query) ||
-        (b.distributor && b.distributor.toLowerCase().includes(query))
+        (b.name && b.name.toLowerCase().includes(query)) ||
+        (b.batchNo && b.batchNo.toLowerCase().includes(query)) ||
+        (b.distributor && b.distributor.toLowerCase().includes(query)) ||
+        (b.generic_name && b.generic_name.toLowerCase().includes(query))
       );
     }
 
     if (filter !== 'all') {
       batches = batches.filter(b => {
-        if (filter === 'critical') return b.daysLeft <= 30;
-        if (filter === 'warning') return b.daysLeft > 30 && b.daysLeft <= 60;
-        if (filter === 'watchlist') return b.daysLeft > 60 && b.daysLeft <= 90;
-        if (filter === 'safe') return b.daysLeft > 90;
+        if (filter === 'expired') return b.daysLeft <= 0;
+        if (filter === 'critical') return b.daysLeft > 0 && b.daysLeft <= 60;
+        if (filter === 'warning') return b.daysLeft > 60 && b.daysLeft <= 180;
+        if (filter === 'safe') return b.daysLeft > 180;
         return true;
       });
     }
+
+    // Sort by earliest expiry first
+    batches.sort((a, b) => {
+      if (a.daysLeft !== b.daysLeft) return a.daysLeft - b.daysLeft;
+      return (a.name || '').localeCompare(b.name || '');
+    });
 
     if (batches.length === 0) {
       tbody.innerHTML = '';
@@ -1813,7 +1904,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tbody.innerHTML = batches.map(b => {
       const risk = getRiskDetails(b.daysLeft);
-      const totalVal = b.quantity * b.purchaseRate;
+      const totalVal = (parseFloat(b.quantity) || 0) * (parseFloat(b.purchaseRate) || 0);
 
       return `
         <tr>
@@ -1827,8 +1918,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span style="font-family: var(--font-mono);">${b.expiryDate}</span></td>
           <td><span class="risk-pill ${risk.class}">${risk.label}</span></td>
           <td><span class="fefo-pill">FIFO Active</span></td>
-          <td><span style="font-family: var(--font-mono);">₹${b.purchaseRate.toLocaleString('en-IN')}</span></td>
-          <td><strong>₹${totalVal.toLocaleString('en-IN')}</strong></td>
+          <td><span style="font-family: var(--font-mono);">₹${(parseFloat(b.purchaseRate) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></td>
+          <td><strong>₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
           <td>
             <button type="button" class="btn-secondary" style="height: 28px; font-size: 0.75rem; padding: 0 0.5rem;" onclick="window.quickReturn('${b.id}')">
               Return
@@ -1852,21 +1943,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
     empty.hidden = true;
 
-    tbody.innerHTML = pharmacyDb.batches.map(b => {
-      const days = calculateDaysRemaining(b.expiryDate);
-      const risk = getRiskDetails(days);
-      const totalVal = b.quantity * b.purchaseRate;
+    // Strict FEFO Sort: Earliest Expiry (lowest daysLeft) -> Latest Expiry (highest daysLeft)
+    // Expired batches (daysLeft <= 0) naturally appear first with highest urgency
+    const sortedBatches = [...pharmacyDb.batches].map(b => ({
+      ...b,
+      daysLeft: calculateDaysRemaining(b.expiryDate)
+    })).sort((a, b) => {
+      if (a.daysLeft !== b.daysLeft) return a.daysLeft - b.daysLeft;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // Group batches by medicine name to compute relative FEFO status within each medicine
+    const medBatchesMap = {};
+    sortedBatches.forEach(b => {
+      const medKey = (b.name || '').trim().toLowerCase();
+      if (!medBatchesMap[medKey]) medBatchesMap[medKey] = [];
+      medBatchesMap[medKey].push(b);
+    });
+
+    tbody.innerHTML = sortedBatches.map(b => {
+      const risk = getRiskDetails(b.daysLeft);
+      const totalVal = (parseFloat(b.quantity) || 0) * (parseFloat(b.purchaseRate) || 0);
+
+      const medKey = (b.name || '').trim().toLowerCase();
+      const siblings = medBatchesMap[medKey] || [];
+      const validSiblings = siblings.filter(s => s.daysLeft > 0);
+      const isEarliestValid = validSiblings.length > 0 && validSiblings[0].id === b.id;
+      const isLaterBatch = validSiblings.length > 1 && !isEarliestValid && b.daysLeft > 0;
+
+      let fefoBadge;
+      if (b.daysLeft <= 0) {
+        fefoBadge = `<span class="fefo-pill urgent" style="background:#fff1f2; color:#be123c; border-color:#fecdd3;">Expired (Do Not Dispense)</span>`;
+      } else if (isEarliestValid && siblings.length > 1) {
+        fefoBadge = `<span class="fefo-pill urgent">Dispense First (FEFO)</span>`;
+      } else if (isLaterBatch) {
+        fefoBadge = `<span class="fefo-pill" style="background:#f8fafc; color:#64748b; border-color:#e2e8f0;">Hold (Later Expiry)</span>`;
+      } else {
+        fefoBadge = `<span class="fefo-pill">Priority 1 (FEFO)</span>`;
+      }
 
       return `
         <tr>
-          <td><strong>${b.name}</strong></td>
+          <td>
+            <strong>${b.name}</strong>
+            <div style="font-size: 0.725rem; color: var(--color-text-muted);">${b.pack || 'Standard'} • ${b.rack || 'Rack A-1'}</div>
+          </td>
           <td><span class="table-batch-pill">${b.batchNo}</span></td>
           <td><strong>${b.quantity}</strong> units</td>
           <td><span style="font-family: var(--font-mono);">${b.expiryDate}</span></td>
           <td><span class="risk-pill ${risk.class}">${risk.label}</span></td>
-          <td><span class="fefo-pill">Priority 1</span></td>
+          <td>${fefoBadge}</td>
           <td>${b.distributor || 'General Stockist'}</td>
-          <td><strong>₹${totalVal.toLocaleString('en-IN')}</strong></td>
+          <td><strong>₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
         </tr>
       `;
     }).join('');
