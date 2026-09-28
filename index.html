@@ -1940,6 +1940,19 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label for="mDemand" class="form-label">Demand Tier & Low-Stock Threshold</label>
+          <select id="mDemand" class="form-select">
+            <option value="auto">Auto Detect (Calculated from movement turnover & batch volume)</option>
+            <option value="high">High Demand (Threshold: 50 units)</option>
+            <option value="medium">Medium Demand (Threshold: 20 units)</option>
+            <option value="low">Low Demand (Threshold: 10 units)</option>
+          </select>
+          <div id="mDemandHint" style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.35rem;">
+            Calculated Safety Threshold: <strong id="mDemandPreview" style="color: var(--color-brand-teal);">Auto-Detected (20 units default)</strong>
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="cancelAddMedBtn">Cancel</button>
           <button type="submit" class="btn-primary">Save to Stock</button>

@@ -1561,6 +1561,137 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   };
 
+  // ==========================================================================
+  // DEMAND-BASED LOW STOCK THRESHOLD ENGINE
+  // ==========================================================================
+  const DEMAND_THRESHOLDS = {
+    HIGH: 50,
+    MEDIUM: 20,
+    LOW: 10
+  };
+
+  const DEMAND_LABELS = {
+    HIGH: 'High Demand',
+    MEDIUM: 'Medium Demand',
+    LOW: 'Low Demand'
+  };
+
+  /**
+   * Determine the demand tier and low-stock safety threshold for a medicine.
+   * If explicit demand is provided or set manually on a batch, it takes priority.
+   * Otherwise, auto-detects from actual pharmacy movement turnover and batch inflow.
+   */
+  const getMedicineDemandDetails = (medicineName, explicitDemand = null) => {
+    const normName = (medicineName || '').trim().toLowerCase();
+
+    let assignedTier = null;
+    if (explicitDemand && typeof explicitDemand === 'string' && ['high', 'medium', 'low'].includes(explicitDemand.toLowerCase())) {
+      assignedTier = explicitDemand.toUpperCase();
+    } else {
+      const medBatches = (pharmacyDb.batches || []).filter(b => (b.name || '').trim().toLowerCase() === normName);
+      const manualBatch = medBatches.find(b => b.demand && ['high', 'medium', 'low'].includes(b.demand.toLowerCase()));
+      if (manualBatch) {
+        assignedTier = manualBatch.demand.toUpperCase();
+      }
+    }
+
+    let isAutoDetected = false;
+    if (!assignedTier) {
+      isAutoDetected = true;
+      const movements = (pharmacyDb.movements || []).filter(m => (m.medicineName || '').trim().toLowerCase() === normName);
+      const batches = (pharmacyDb.batches || []).filter(b => (b.name || '').trim().toLowerCase() === normName);
+
+      const unitsSoldOrDispensed = movements
+        .filter(m => m.type === 'Sold' || m.type === 'Dispensed' || m.type === 'Transferred')
+        .reduce((sum, m) => sum + (parseFloat(m.quantity) || 0), 0);
+
+      const totalBatchInflow = batches.reduce((sum, b) => sum + (parseFloat(b.quantity) || 0), 0);
+      const movementCount = movements.length;
+
+      // High demand: significant sales turnover (>=50 units), large batch inflow (>=100 units), or frequent movements (>=5 transactions)
+      if (unitsSoldOrDispensed >= 50 || totalBatchInflow >= 100 || movementCount >= 5) {
+        assignedTier = 'HIGH';
+      }
+      // Low demand: very slow turnover (<10 units), small batch inflow (<=15 units), and <=1 movement
+      else if (unitsSoldOrDispensed < 10 && totalBatchInflow <= 15 && movementCount <= 1) {
+        assignedTier = 'LOW';
+      }
+      // Medium demand: regular steady turnover
+      else {
+        assignedTier = 'MEDIUM';
+      }
+    }
+
+    const threshold = DEMAND_THRESHOLDS[assignedTier] || DEMAND_THRESHOLDS.MEDIUM;
+    const label = DEMAND_LABELS[assignedTier] || 'Medium Demand';
+    const tierKey = assignedTier.toLowerCase();
+
+    return {
+      tier: assignedTier,
+      tierKey,
+      label,
+      threshold,
+      isAutoDetected
+    };
+  };
+
+  /**
+   * Evaluates whether a given medicine's total stock triggers a low stock alert.
+   */
+  const evaluateLowStockStatus = (medicineName, currentStock, explicitDemand = null) => {
+    const demandInfo = getMedicineDemandDetails(medicineName, explicitDemand);
+    const stock = parseFloat(currentStock) || 0;
+    const isLowStock = stock <= demandInfo.threshold;
+    const deficit = isLowStock ? Math.max(0, demandInfo.threshold - stock) : 0;
+
+    return {
+      ...demandInfo,
+      currentStock: stock,
+      isLowStock,
+      deficit
+    };
+  };
+
+  /**
+   * Aggregates active inventory across batches by medicine and returns all medicines below safety threshold.
+   */
+  const getLowStockMedicines = () => {
+    const medStockMap = {};
+    (pharmacyDb.batches || []).forEach(b => {
+      const name = (b.name || '').trim();
+      const key = name.toLowerCase();
+      if (!key) return;
+      if (!medStockMap[key]) {
+        medStockMap[key] = {
+          name: name,
+          totalStock: 0,
+          batches: [],
+          demand: b.demand || null
+        };
+      }
+      medStockMap[key].totalStock += (parseFloat(b.quantity) || 0);
+      medStockMap[key].batches.push(b);
+      if (b.demand && ['high', 'medium', 'low'].includes(b.demand.toLowerCase())) {
+        medStockMap[key].demand = b.demand;
+      }
+    });
+
+    const lowStockItems = [];
+    Object.values(medStockMap).forEach(med => {
+      const status = evaluateLowStockStatus(med.name, med.totalStock, med.demand);
+      if (status.isLowStock) {
+        lowStockItems.push({
+          name: med.name,
+          ...status
+        });
+      }
+    });
+
+    // Sort by largest deficit first, then lowest stock, then medicine name
+    lowStockItems.sort((a, b) => b.deficit - a.deficit || a.currentStock - b.currentStock || a.name.localeCompare(b.name));
+    return lowStockItems;
+  };
+
   // Master UI Refresh Function
   const refreshAllWorkspaceViews = () => {
     if (!currentPharmacy) return;
@@ -1689,6 +1820,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sideCountInventory) {
       sideCountInventory.textContent = activeBatches.length;
       sideCountInventory.hidden = activeBatches.length === 0;
+    }
+    if (sideCountLowStock) {
+      const lowStockItems = getLowStockMedicines();
+      sideCountLowStock.textContent = lowStockItems.length;
+      sideCountLowStock.hidden = lowStockItems.length === 0;
     }
     if (sideCountExpiry) {
       sideCountExpiry.textContent = expiringCount;
@@ -2006,20 +2142,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const sideCountLowStock = document.getElementById('sideCountLowStock');
     if (!list || !empty) return;
 
-    const medTotals = {};
-    pharmacyDb.batches.forEach(b => {
-      const k = b.name;
-      medTotals[k] = (medTotals[k] || 0) + b.quantity;
-    });
-
-    const lowStockMeds = Object.keys(medTotals).filter(name => medTotals[name] > 0 && medTotals[name] < 15);
+    const lowStockItems = getLowStockMedicines();
 
     if (sideCountLowStock) {
-      sideCountLowStock.textContent = lowStockMeds.length;
-      sideCountLowStock.hidden = lowStockMeds.length === 0;
+      sideCountLowStock.textContent = lowStockItems.length;
+      sideCountLowStock.hidden = lowStockItems.length === 0;
     }
 
-    if (lowStockMeds.length === 0) {
+    if (lowStockItems.length === 0) {
       list.hidden = true;
       empty.hidden = false;
       return;
@@ -2028,13 +2158,18 @@ document.addEventListener('DOMContentLoaded', () => {
     empty.hidden = true;
     list.hidden = false;
 
-    list.innerHTML = lowStockMeds.map(med => `
-      <div style="display:flex; align-items:center; justify-content:space-between; padding:0.85rem 1rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.65rem;">
+    list.innerHTML = lowStockItems.map(item => `
+      <div class="low-stock-item-card" style="display:flex; align-items:center; justify-content:space-between; padding:0.95rem 1.15rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.75rem; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
         <div>
-          <strong>${med}</strong>
-          <div style="font-size:0.75rem; color:var(--status-warning); font-weight:700;">Stock: ${medTotals[med]} units (Threshold: 15)</div>
+          <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.35rem; flex-wrap:wrap;">
+            <strong style="font-size:0.9375rem; color:var(--color-text-main);">${item.name}</strong>
+            <span class="demand-pill ${item.tierKey}">${item.label}${item.isAutoDetected ? ' (Auto)' : ''}</span>
+          </div>
+          <div style="font-size:0.8125rem; color:var(--status-critical); font-weight:600;">
+            Current Stock: <strong>${item.currentStock}</strong> units • Low Stock Threshold: <strong>${item.threshold}</strong> units <span style="color:var(--color-text-muted); font-weight:500;">(Deficit: ${item.deficit} units)</span>
+          </div>
         </div>
-        <button type="button" class="btn-primary" style="height:32px; font-size:0.75rem;" onclick="alert('Reorder reminder created for ${med}')">
+        <button type="button" class="btn-primary" style="height:34px; font-size:0.775rem; white-space:nowrap;" onclick="alert('Reorder reminder created for ${item.name.replace(/'/g, "\\'")}')">
           Create Reorder Reminder
         </button>
       </div>
@@ -3154,6 +3289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mrp: item.mrp !== undefined && item.mrp !== null ? item.mrp : item.purchase_rate,
             rack: 'Rack A-1',
             distributor: payload.distributor,
+            demand: item.demand || 'auto',
             createdAt: new Date().toISOString()
           });
 
@@ -3220,12 +3356,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelAddMedBtn = document.getElementById('cancelAddMedBtn');
   const addMedForm = document.getElementById('addMedForm');
 
+  const updateAddMedDemandPreview = () => {
+    const mMedName = document.getElementById('mMedName');
+    const mDemand = document.getElementById('mDemand');
+    const mDemandPreview = document.getElementById('mDemandPreview');
+    if (!mDemandPreview) return;
+
+    const medName = mMedName ? mMedName.value.trim() : '';
+    const selectedDemand = mDemand ? mDemand.value : 'auto';
+
+    if (selectedDemand === 'high') {
+      mDemandPreview.textContent = 'High Demand (Safety Threshold: 50 units)';
+    } else if (selectedDemand === 'medium') {
+      mDemandPreview.textContent = 'Medium Demand (Safety Threshold: 20 units)';
+    } else if (selectedDemand === 'low') {
+      mDemandPreview.textContent = 'Low Demand (Safety Threshold: 10 units)';
+    } else {
+      const details = getMedicineDemandDetails(medName, 'auto');
+      mDemandPreview.textContent = `Auto-Detected: ${details.label} (Safety Threshold: ${details.threshold} units)`;
+    }
+  };
+
   const openAddMedModal = () => {
     if (!addMedModal) return;
     addMedModal.classList.remove('view-hidden');
     addMedModal.classList.add('view-active');
     const mMedName = document.getElementById('mMedName');
     if (mMedName) mMedName.focus();
+    updateAddMedDemandPreview();
   };
 
   const closeAddMedModal = () => {
@@ -3233,7 +3391,15 @@ document.addEventListener('DOMContentLoaded', () => {
     addMedModal.classList.remove('view-active');
     addMedModal.classList.add('view-hidden');
     if (addMedForm) addMedForm.reset();
+    const mDemand = document.getElementById('mDemand');
+    if (mDemand) mDemand.value = 'auto';
+    updateAddMedDemandPreview();
   };
+
+  const mMedNameInput = document.getElementById('mMedName');
+  const mDemandSelect = document.getElementById('mDemand');
+  if (mMedNameInput) mMedNameInput.addEventListener('input', updateAddMedDemandPreview);
+  if (mDemandSelect) mDemandSelect.addEventListener('change', updateAddMedDemandPreview);
 
   if (topbarAddMedBtn) topbarAddMedBtn.addEventListener('click', openAddMedModal);
   if (emptyAddMedBtn) emptyAddMedBtn.addEventListener('click', openAddMedModal);
@@ -3253,6 +3419,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const mMrp = document.getElementById('mMrp');
       const mRack = document.getElementById('mRack');
       const mDistributor = document.getElementById('mDistributor');
+      const mDemand = document.getElementById('mDemand');
 
       if (!mMedName.value.trim() || !mBatchNo.value.trim() || !mExpiryDate.value || !mQty.value || !mPurchaseRate.value) {
         alert('Please fill all required fields.');
@@ -3261,6 +3428,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const qty = parseFloat(mQty.value) || 1;
       const rate = parseFloat(mPurchaseRate.value) || 0;
+      const demandVal = mDemand ? mDemand.value : 'auto';
 
       pharmacyDb.batches.push({
         id: 'B_' + Date.now(),
@@ -3273,6 +3441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mrp: parseFloat(mMrp.value) || (rate * 1.3),
         rack: mRack.value.trim() || 'Rack A-1',
         distributor: mDistributor.value.trim() || 'Direct Supplier',
+        demand: demandVal,
         createdAt: new Date().toISOString()
       });
 

@@ -1191,6 +1191,14 @@ body {
 .fefo-pill { font-size: 0.6875rem; font-weight: 800; padding: 0.18rem 0.55rem; border-radius: var(--radius-sm); background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
 .fefo-pill.urgent { background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); color: #be123c; border-color: #fecdd3; }
 
+.demand-pill { font-size: 0.6875rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: var(--radius-pill); display: inline-flex; align-items: center; gap: 0.35rem; }
+.demand-pill.high { background: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; }
+.demand-pill.medium { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.demand-pill.low { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
+.low-stock-item-card { transition: all var(--transition-fast); }
+.low-stock-item-card:hover { border-color: #cbd5e1 !important; box-shadow: var(--shadow-sm) !important; }
+
 /* Side-by-Side Review Area */
 .side-by-side-ocr-layout { display: grid; grid-template-columns: 380px 1fr; gap: 1.5rem; align-items: start; margin-top: 1rem; }
 .doc-preview-pane {
