@@ -2137,7 +2137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const getBillDocumentUrl = (bill, isDownload = false) => {
     if (!bill) return '#';
-    const token = (currentPharmacy && currentPharmacy.id) ? currentPharmacy.id : (sessionToken || '');
+    const token = sessionToken || localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || '';
     let url = '';
     if (bill.originalFileUrl && bill.originalFileUrl.startsWith('/api/bills/')) {
       url = `${API_BASE_URL}${bill.originalFileUrl}`;

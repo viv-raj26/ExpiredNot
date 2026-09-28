@@ -934,7 +934,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         if not token and hasattr(self, 'path') and '?' in self.path:
             try:
                 q_parsed = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                token = q_parsed.get('token', [''])[0].strip() or None
+                token = q_parsed.get('token', [''])[0].strip() or q_parsed.get('session_token', [''])[0].strip() or q_parsed.get('auth_token', [''])[0].strip() or None
             except Exception:
                 token = None
                 
