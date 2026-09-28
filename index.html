@@ -916,16 +916,14 @@
             </button>
           </div>
 
-          <!-- User Menu & Sign Out -->
+          <!-- User Menu & Profile Button -->
           <div class="user-menu-box">
-            <div class="user-avatar-circle" id="userAvatarInitials">PH</div>
-            <button type="button" class="btn-logout" id="logoutBtn" title="Sign out of pharmacy">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-              </svg>
-              <span>Sign Out</span>
+            <button type="button" class="user-avatar-btn" id="userProfileBtn" title="Open Pharmacy Profile & Account">
+              <div class="user-avatar-circle" id="userAvatarInitials">PH</div>
+              <div class="user-avatar-text-box">
+                <span class="user-avatar-name" id="userAvatarName">Pharmacist</span>
+                <span class="user-avatar-role" id="userAvatarRole">Profile & Settings</span>
+              </div>
             </button>
           </div>
 
@@ -1941,6 +1939,159 @@
           <button type="submit" class="btn-primary">Save Expense</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: COMPLETE PHARMACY PROFILE & ACCOUNT
+       ========================================================================== -->
+  <div id="profileModal" class="modal-wrapper view-hidden" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="modal-backdrop" id="profileModalBackdrop"></div>
+    <div class="modal-card" style="max-width: 580px; width: 100%;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="profileModalTitle">Pharmacy Profile & Account</h3>
+          <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.2rem;">Manage verified chemist credentials, license details, and profile photo.</p>
+        </div>
+        <button type="button" class="btn-close-modal" id="closeProfileModalBtn">×</button>
+      </div>
+
+      <div class="profile-modal-body" style="padding-top: 1rem;">
+        
+        <!-- Identity Summary Card -->
+        <div class="profile-identity-card">
+          <div class="profile-avatar-container">
+            <div class="profile-avatar-large" id="profileModalAvatar">PH</div>
+            <button type="button" class="btn-avatar-camera" id="profilePhotoTriggerBtn" title="Upload new photo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
+            <input type="file" id="profilePhotoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+          </div>
+          <div class="profile-identity-info">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <strong style="font-size: 1.05rem; color: var(--color-text-main);" id="profileModalOwnerName">Pharmacist</strong>
+              <span class="user-role-pill" id="profileModalTypeBadge">Retail Chemist</span>
+            </div>
+            <div style="font-size: 0.8125rem; color: var(--color-text-muted); margin-top: 0.2rem;" id="profileModalEmail">—</div>
+            <div style="font-size: 0.8125rem; color: var(--color-text-muted);" id="profileModalMobile">—</div>
+            <div class="profile-photo-actions" style="margin-top: 0.4rem; display: flex; gap: 0.75rem;">
+              <button type="button" class="btn-text-action" id="profilePhotoChangeBtn">Change Photo</button>
+              <button type="button" class="btn-text-action" id="profilePhotoRemoveBtn" style="color: var(--status-critical);">Remove Photo</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- View Mode: Pharmacy Details -->
+        <div id="profileViewMode" style="margin-top: 1rem;">
+          <div class="dash-card gradient-border-subtle" style="padding: 1rem; background: var(--color-bg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <strong style="font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted);">Licence & Pharmacy Info</strong>
+              <button type="button" class="btn-text-link" id="toggleEditProfileBtn" style="font-size: 0.75rem; color: var(--brand-primary); font-weight: 600; cursor:pointer;">✎ Edit Details</button>
+            </div>
+            <div class="profile-info-grid">
+              <div class="profile-info-row">
+                <span class="profile-info-label">Shop Name</span>
+                <strong class="profile-info-value" id="profileModalShopName">My Pharmacy</strong>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Drug Licence No.</span>
+                <strong class="profile-info-value mono-val" id="profileModalDlNumber">—</strong>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Pharmacy Type</span>
+                <span class="profile-info-value" id="profileModalPharmacyType">Retail Pharmacy</span>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Address</span>
+                <span class="profile-info-value" id="profileModalAddress">—</span>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Location</span>
+                <span class="profile-info-value" id="profileModalCityState">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Mode: Pharmacy Details Form (Hidden by default) -->
+        <form id="profileEditForm" class="profile-edit-form view-hidden" novalidate style="margin-top: 1rem;">
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label">Owner / Chemist Name *</label>
+              <input type="text" id="editOwnerName" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mobile Number</label>
+              <input type="tel" id="editMobile" class="form-input" placeholder="e.g. 9876543210">
+            </div>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label">Pharmacy / Shop Name *</label>
+              <input type="text" id="editShopName" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Drug Licence No. (D.L. No.) *</label>
+              <input type="text" id="editDlNumber" class="form-input mono-input" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Shop Full Address</label>
+            <input type="text" id="editShopAddress" class="form-input" placeholder="e.g. Shop 4, Ground Floor, Central Plaza">
+          </div>
+
+          <div class="form-row-3col">
+            <div class="form-group">
+              <label class="form-label">City</label>
+              <input type="text" id="editCity" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">State</label>
+              <input type="text" id="editState" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pincode</label>
+              <input type="text" id="editPincode" class="form-input mono-input" maxlength="6">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Pharmacy Type</label>
+            <div class="input-wrapper select-wrapper">
+              <select id="editPharmacyType" class="form-input select-input">
+                <option value="Retail Pharmacy">Retail Pharmacy</option>
+                <option value="Hospital Pharmacy">Hospital / Clinical Pharmacy</option>
+                <option value="Wholesale & Retail">Wholesale & Retail Druggist</option>
+                <option value="Generic Medicine Store">Generic Medicine Store</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+            <button type="button" class="btn-secondary" id="cancelEditProfileBtn">Cancel</button>
+            <button type="submit" class="btn-primary" id="saveProfileBtn">Save Profile</button>
+          </div>
+        </form>
+
+        <!-- Sign Out Action Section -->
+        <div class="profile-signout-section" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.75rem; color: var(--color-text-muted);">End active pharmacy session</span>
+          <button type="button" class="btn-profile-signout" id="profileModalSignOutBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+
+      </div>
     </div>
   </div>
 

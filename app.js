@@ -169,6 +169,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadPharmacyData = async (pharmacyId) => {
     if (!pharmacyId || isDemoMode) return;
     
+    // 0. Fetch authoritative profile from SQLite backend
+    try {
+      const profRes = await authenticatedFetch(`${API_BASE_URL}/api/profile`);
+      if (profRes.ok) {
+        const profData = await profRes.json();
+        if (profData.user) {
+          currentPharmacy = profData.user;
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+          localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        }
+      }
+    } catch (e) {
+      console.warn('Could not refresh profile from backend:', e);
+    }
+
     // 1. Fetch real batches from SQLite backend
     try {
       const res = await authenticatedFetch(`${API_BASE_URL}/api/inventory`);
@@ -1493,9 +1508,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (setShopAddress) setShopAddress.value = fullAddr || 'Not specified';
     if (setOwnerName) setOwnerName.value = `${oName} (${oRole})`;
 
+    const userAvatarName = document.getElementById('userAvatarName');
+    const userAvatarRole = document.getElementById('userAvatarRole');
+    if (userAvatarName) userAvatarName.textContent = oName;
+    if (userAvatarRole) userAvatarRole.textContent = currentPharmacy.pharmacy_type || currentPharmacy.pharmacyType || 'Profile & Settings';
+
     if (userAvatarInitials) {
-      const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-      userAvatarInitials.textContent = initials;
+      if (currentPharmacy.profile_photo) {
+        userAvatarInitials.innerHTML = `<img src="${currentPharmacy.profile_photo}" alt="${oName}">`;
+      } else {
+        const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        userAvatarInitials.textContent = initials || 'PH';
+      }
     }
 
     renderDashboardMetrics();
@@ -2738,6 +2762,323 @@ document.addEventListener('DOMContentLoaded', () => {
       savePharmacyData();
       closeExpenseModal();
       refreshAllWorkspaceViews();
+    });
+  }
+
+  // ==========================================================================
+  // 9B. PHARMACY PROFILE & PHOTO CONTROLLER
+  // ==========================================================================
+  const userProfileBtn = document.getElementById('userProfileBtn');
+  const profileModal = document.getElementById('profileModal');
+  const profileModalBackdrop = document.getElementById('profileModalBackdrop');
+  const closeProfileModalBtn = document.getElementById('closeProfileModalBtn');
+  const toggleEditProfileBtn = document.getElementById('toggleEditProfileBtn');
+  const cancelEditProfileBtn = document.getElementById('cancelEditProfileBtn');
+  const profileViewMode = document.getElementById('profileViewMode');
+  const profileEditForm = document.getElementById('profileEditForm');
+  const profilePhotoTriggerBtn = document.getElementById('profilePhotoTriggerBtn');
+  const profilePhotoChangeBtn = document.getElementById('profilePhotoChangeBtn');
+  const profilePhotoRemoveBtn = document.getElementById('profilePhotoRemoveBtn');
+  const profilePhotoFileInput = document.getElementById('profilePhotoFileInput');
+  const profileModalSignOutBtn = document.getElementById('profileModalSignOutBtn');
+
+  const openProfileModal = async () => {
+    if (!profileModal || !currentPharmacy) return;
+
+    // Refresh profile details from backend
+    try {
+      const res = await authenticatedFetch(`${API_BASE_URL}/api/profile`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          currentPharmacy = data.user;
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+          localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        }
+      }
+    } catch {}
+
+    const oName = currentPharmacy.owner_name || currentPharmacy.ownerName || 'Pharmacist';
+    const email = currentPharmacy.email || '';
+    const mobile = currentPharmacy.mobile || 'Not provided';
+    const shopName = currentPharmacy.shop_name || currentPharmacy.shopName || 'My Pharmacy';
+    const dlNumber = currentPharmacy.dl_number || currentPharmacy.dlNumber || 'Not provided';
+    const pType = currentPharmacy.pharmacy_type || currentPharmacy.pharmacyType || 'Retail Pharmacy';
+    const sAddr = currentPharmacy.shop_address || currentPharmacy.shopAddress || '';
+    const city = currentPharmacy.city || '';
+    const state = currentPharmacy.state || '';
+    const pin = currentPharmacy.pincode || '';
+    const photo = currentPharmacy.profile_photo || null;
+
+    // Render large avatar in modal
+    const avatarEl = document.getElementById('profileModalAvatar');
+    if (avatarEl) {
+      if (photo) {
+        avatarEl.innerHTML = `<img src="${photo}" alt="${oName}">`;
+      } else {
+        const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        avatarEl.textContent = initials || 'PH';
+      }
+    }
+
+    const ownerNameEl = document.getElementById('profileModalOwnerName');
+    const emailEl = document.getElementById('profileModalEmail');
+    const mobileEl = document.getElementById('profileModalMobile');
+    const typeBadgeEl = document.getElementById('profileModalTypeBadge');
+    const shopNameEl = document.getElementById('profileModalShopName');
+    const dlNumberEl = document.getElementById('profileModalDlNumber');
+    const pTypeEl = document.getElementById('profileModalPharmacyType');
+    const addrEl = document.getElementById('profileModalAddress');
+    const cityStateEl = document.getElementById('profileModalCityState');
+
+    if (ownerNameEl) ownerNameEl.textContent = oName;
+    if (emailEl) emailEl.textContent = email;
+    if (mobileEl) mobileEl.textContent = mobile;
+    if (typeBadgeEl) typeBadgeEl.textContent = pType;
+    if (shopNameEl) shopNameEl.textContent = shopName;
+    if (dlNumberEl) dlNumberEl.textContent = dlNumber;
+    if (pTypeEl) pTypeEl.textContent = pType;
+    if (addrEl) addrEl.textContent = sAddr || 'Not provided';
+    if (cityStateEl) cityStateEl.textContent = [city, state, pin].filter(Boolean).join(', ') || 'Not provided';
+
+    // Populate edit form inputs
+    const editOwner = document.getElementById('editOwnerName');
+    const editMob = document.getElementById('editMobile');
+    const editShop = document.getElementById('editShopName');
+    const editDl = document.getElementById('editDlNumber');
+    const editAddr = document.getElementById('editShopAddress');
+    const editCityEl = document.getElementById('editCity');
+    const editStateEl = document.getElementById('editState');
+    const editPinEl = document.getElementById('editPincode');
+    const editPType = document.getElementById('editPharmacyType');
+
+    if (editOwner) editOwner.value = oName;
+    if (editMob) editMob.value = mobile !== 'Not provided' ? mobile : '';
+    if (editShop) editShop.value = shopName !== 'My Pharmacy' ? shopName : '';
+    if (editDl) editDl.value = dlNumber !== 'Not provided' ? dlNumber : '';
+    if (editAddr) editAddr.value = sAddr;
+    if (editCityEl) editCityEl.value = city;
+    if (editStateEl) editStateEl.value = state;
+    if (editPinEl) editPinEl.value = pin;
+    if (editPType) editPType.value = pType;
+
+    // Reset to view mode
+    if (profileViewMode) profileViewMode.classList.remove('view-hidden');
+    if (profileEditForm) profileEditForm.classList.add('view-hidden');
+
+    profileModal.classList.remove('view-hidden');
+    profileModal.classList.add('view-active');
+  };
+
+  const closeProfileModal = () => {
+    if (!profileModal) return;
+    profileModal.classList.remove('view-active');
+    profileModal.classList.add('view-hidden');
+  };
+
+  window.openProfileModal = openProfileModal;
+  window.closeProfileModal = closeProfileModal;
+
+  if (userProfileBtn) userProfileBtn.addEventListener('click', openProfileModal);
+  if (closeProfileModalBtn) closeProfileModalBtn.addEventListener('click', closeProfileModal);
+  if (profileModalBackdrop) profileModalBackdrop.addEventListener('click', closeProfileModal);
+
+  if (toggleEditProfileBtn) {
+    toggleEditProfileBtn.addEventListener('click', () => {
+      if (profileViewMode) profileViewMode.classList.add('view-hidden');
+      if (profileEditForm) profileEditForm.classList.remove('view-hidden');
+    });
+  }
+
+  if (cancelEditProfileBtn) {
+    cancelEditProfileBtn.addEventListener('click', () => {
+      if (profileEditForm) profileEditForm.classList.add('view-hidden');
+      if (profileViewMode) profileViewMode.classList.remove('view-hidden');
+    });
+  }
+
+  if (profileEditForm) {
+    profileEditForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const saveBtn = document.getElementById('saveProfileBtn');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+      }
+
+      const payload = {
+        owner_name: document.getElementById('editOwnerName').value.trim(),
+        mobile: document.getElementById('editMobile').value.trim(),
+        shop_name: document.getElementById('editShopName').value.trim(),
+        dl_number: document.getElementById('editDlNumber').value.trim(),
+        shop_address: document.getElementById('editShopAddress').value.trim(),
+        city: document.getElementById('editCity').value.trim(),
+        state: document.getElementById('editState').value.trim(),
+        pincode: document.getElementById('editPincode').value.trim(),
+        pharmacy_type: document.getElementById('editPharmacyType').value
+      };
+
+      try {
+        const res = await authenticatedFetch(`${API_BASE_URL}/api/profile/update`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Profile';
+        }
+
+        if (!res.ok) {
+          alert(data.error || 'Failed to update profile.');
+          return;
+        }
+
+        currentPharmacy = data.user;
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+        refreshAllWorkspaceViews();
+        openProfileModal();
+      } catch (err) {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Profile';
+        }
+        alert('Network error while saving profile details.');
+      }
+    });
+  }
+
+  const triggerPhotoUpload = () => {
+    if (profilePhotoFileInput) profilePhotoFileInput.click();
+  };
+
+  if (profilePhotoTriggerBtn) profilePhotoTriggerBtn.addEventListener('click', triggerPhotoUpload);
+  if (profilePhotoChangeBtn) profilePhotoChangeBtn.addEventListener('click', triggerPhotoUpload);
+
+  if (profilePhotoFileInput) {
+    profilePhotoFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        handleProfilePhotoUpload(file);
+      }
+      e.target.value = '';
+    });
+  }
+
+  const handleProfilePhotoUpload = (file) => {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+      alert('Please select a valid image file (JPEG, PNG, or WEBP).');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      alert('Image file too large. Maximum size is 3MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (re) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > h) {
+          if (w > MAX_DIM) {
+            h *= MAX_DIM / w;
+            w = MAX_DIM;
+          }
+        } else {
+          if (h > MAX_DIM) {
+            w *= MAX_DIM / h;
+            h = MAX_DIM;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+        try {
+          const res = await authenticatedFetch(`${API_BASE_URL}/api/profile/photo`, {
+            method: 'POST',
+            body: JSON.stringify({ photo: compressedBase64 })
+          });
+          const data = await res.json();
+          if (res.ok && data.user) {
+            currentPharmacy = data.user;
+            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+            localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+            refreshAllWorkspaceViews();
+            const avatarModal = document.getElementById('profileModalAvatar');
+            if (avatarModal) avatarModal.innerHTML = `<img src="${compressedBase64}" alt="Profile">`;
+          } else {
+            alert(data.error || 'Failed to save profile photo.');
+          }
+        } catch (err) {
+          alert('Network error while saving profile photo.');
+        }
+      };
+      img.src = re.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  if (profilePhotoRemoveBtn) {
+    profilePhotoRemoveBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to remove your profile photo?')) return;
+      try {
+        const res = await authenticatedFetch(`${API_BASE_URL}/api/profile/photo`, {
+          method: 'POST',
+          body: JSON.stringify({ photo: 'remove' })
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          currentPharmacy = data.user;
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+          localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+
+          refreshAllWorkspaceViews();
+          const oName = currentPharmacy.owner_name || 'Pharmacist';
+          const initials = oName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+          const avatarModal = document.getElementById('profileModalAvatar');
+          if (avatarModal) avatarModal.textContent = initials || 'PH';
+        } else {
+          alert(data.error || 'Failed to remove profile photo.');
+        }
+      } catch (err) {
+        alert('Network error while removing profile photo.');
+      }
+    });
+  }
+
+  // Profile Modal Sign Out Trigger
+  if (profileModalSignOutBtn) {
+    profileModalSignOutBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to sign out of your pharmacy workspace?')) return;
+      closeProfileModal();
+      try {
+        if (window.firebaseAuth) {
+          await window.firebaseAuth.signOut();
+        }
+      } catch {}
+      try {
+        await fetch(`${API_BASE_URL}/api/auth/logout`, { credentials: 'omit', headers: getAuthHeaders(), method: 'POST' });
+      } catch {}
+      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
+      localStorage.removeItem(ACTIVE_TOKEN_KEY);
+      sessionToken = null;
+      currentPharmacy = null;
+      showScreen('auth');
+      showAuthNotice('Signed out of pharmacy workspace.', 'info');
     });
   }
 

@@ -77,7 +77,7 @@ def init_db():
         ''')
         
         # Ensure extra address columns exist in existing database
-        for col, c_type in [('shop_address', 'TEXT'), ('city', 'TEXT'), ('state', 'TEXT'), ('pincode', 'TEXT')]:
+        for col, c_type in [('shop_address', 'TEXT'), ('city', 'TEXT'), ('state', 'TEXT'), ('pincode', 'TEXT'), ('profile_photo', 'TEXT')]:
             try:
                 cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {c_type}")
             except Exception:
@@ -1004,6 +1004,12 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "total_bills_count": len(bills)
             })
 
+        elif path == '/api/profile':
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized"}, 401)
+            return self._send_json({"user": sanitize_user(user)})
+
         if path == '/' or path == '/index.html':
             file_path = os.path.join(BASE_DIR, 'index.html')
         else:
@@ -1656,6 +1662,63 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 "items_added": len(items),
                 "total_amount": total_bill_amount
             })
+
+        elif path == '/api/profile/update':
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+
+            owner_name = (req_data.get('owner_name') or user.get('owner_name') or '').strip()
+            mobile = (req_data.get('mobile') or user.get('mobile') or '').strip()
+            shop_name = (req_data.get('shop_name') or user.get('shop_name') or '').strip()
+            dl_number = (req_data.get('dl_number') or user.get('dl_number') or '').strip()
+            shop_address = (req_data.get('shop_address') or user.get('shop_address') or '').strip()
+            city = (req_data.get('city') or user.get('city') or '').strip()
+            state = (req_data.get('state') or user.get('state') or '').strip()
+            pincode = (req_data.get('pincode') or user.get('pincode') or '').strip()
+            pharmacy_type = (req_data.get('pharmacy_type') or user.get('pharmacy_type') or 'Retail Pharmacy').strip()
+
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE users
+                    SET owner_name = ?, mobile = ?, shop_name = ?, dl_number = ?, shop_address = ?, city = ?, state = ?, pincode = ?, pharmacy_type = ?
+                    WHERE id = ?
+                ''', (owner_name, mobile, shop_name, dl_number, shop_address, city, state, pincode, pharmacy_type, user['id']))
+                conn.commit()
+                cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
+                updated_user = cursor.fetchone()
+
+            return self._send_json({"success": True, "user": sanitize_user(updated_user)})
+
+        elif path == '/api/profile/photo':
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+
+            photo_data = (req_data.get('photo') or '').strip()
+            if not photo_data or photo_data == 'remove':
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE users SET profile_photo = NULL WHERE id = ?", (user['id'],))
+                    conn.commit()
+                    cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
+                    updated_user = cursor.fetchone()
+                return self._send_json({"success": True, "user": sanitize_user(updated_user)})
+
+            if not photo_data.startswith(('data:image/jpeg;base64,', 'data:image/png;base64,', 'data:image/webp;base64,', 'data:image/jpg;base64,')):
+                return self._send_json({"error": "Invalid image format. Allowed formats: JPEG, PNG, WEBP."}, 400)
+            if len(photo_data) > 4 * 1024 * 1024:
+                return self._send_json({"error": "Image file too large. Maximum size is 3MB."}, 400)
+
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (photo_data, user['id']))
+                conn.commit()
+                cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
+                updated_user = cursor.fetchone()
+
+            return self._send_json({"success": True, "user": sanitize_user(updated_user)})
 
         elif path == '/api/auth/logout':
             auth_header = self.headers.get('Authorization', '')
