@@ -1349,8 +1349,16 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             
         post_body = self.rfile.read(content_length) if content_length > 0 else b''
         content_type = self.headers.get('Content-Type', '')
+
+        # Safely parse JSON body if present
+        req_data = {}
+        if ('application/json' in content_type or not content_type) and post_body:
+            try:
+                req_data = json.loads(post_body.decode('utf-8'))
+            except Exception:
+                req_data = {}
         
-        if path == '/api/bills/analyze' and 'multipart/form-data' in content_type:
+        if (path == '/api/bills/analyze' or path == '/api/bills/extract') and 'multipart/form-data' in content_type:
             user = self._get_auth_user()
             user_id = user['id'] if user else 'GUEST'
             
@@ -1408,7 +1416,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 
                 # Generate persistent identifiers and SHA-256 hash
                 file_hash = hashlib.sha256(file_bytes).hexdigest()
-                bill_id = req_data.get('bill_id') if isinstance(req_data, dict) and req_data.get('bill_id') else f"BILL_{uuid.uuid4().hex}"
+                bill_id = f"BILL_{uuid.uuid4().hex}"
                 saved_filename = f"{bill_id}{ext}"
                 saved_path = os.path.join(UPLOADS_DIR, saved_filename)
                 
@@ -1458,11 +1466,6 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"Upload Error: {e}", file=sys.stderr)
                 return self._send_json({"error": f"Failed to process bill file: {str(e)}"}, 500)
-
-        try:
-            req_data = json.loads(post_body.decode('utf-8')) if post_body else {}
-        except Exception:
-            req_data = {}
 
         if path == '/api/auth/register':
             email = req_data.get('email', '').strip().lower()
