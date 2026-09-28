@@ -35,6 +35,33 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPharmacy = null;
   let sessionToken = localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || null;
 
+  const getActiveAuthToken = () => {
+    if (sessionToken) return sessionToken;
+    sessionToken = sessionStorage.getItem(ACTIVE_TOKEN_KEY) || localStorage.getItem(ACTIVE_TOKEN_KEY) || null;
+    return sessionToken;
+  };
+
+  const setActiveSession = (token, user) => {
+    sessionToken = token || null;
+    if (token) {
+      sessionStorage.setItem(ACTIVE_TOKEN_KEY, token);
+      localStorage.setItem(ACTIVE_TOKEN_KEY, token);
+    } else {
+      sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
+      localStorage.removeItem(ACTIVE_TOKEN_KEY);
+    }
+
+    if (user) {
+      currentPharmacy = user;
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(user));
+      localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(user));
+    } else if (user === null) {
+      currentPharmacy = null;
+      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+    }
+  };
+
   // Real Database for Active Pharmacy (STRICT ZERO DEFAULT)
   let pharmacyDb = {
     batches: [],       // { id, name, generic_name, pack, batchNo, expiryDate, quantity, purchaseRate, mrp, rack, distributor, createdAt }
@@ -50,8 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const getAuthHeaders = () => {
     const headers = { 'Content-Type': 'application/json' };
-    if (sessionToken) {
-      headers['Authorization'] = `Bearer ${sessionToken}`;
+    const token = getActiveAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     return headers;
   };
@@ -62,8 +90,9 @@ document.addEventListener('DOMContentLoaded', () => {
    * to ensure a valid backend SQLite session token exists in sessionStorage and localStorage.
    */
   const ensureBackendAuthSession = async (forceRefresh = false) => {
-    if (sessionToken && !forceRefresh) {
-      return sessionToken;
+    const existingToken = getActiveAuthToken();
+    if (existingToken && !forceRefresh) {
+      return existingToken;
     }
 
     let fbUser = window.firebaseAuth ? window.firebaseAuth.currentUser : null;
@@ -78,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!fbUser) {
-      return sessionToken;
+      return getActiveAuthToken();
     }
 
     try {
@@ -115,23 +144,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (bridgeRes.ok) {
         const data = await bridgeRes.json();
         if (data.session_token) {
-          sessionToken = data.session_token;
-          sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-          localStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-          if (data.user) {
-            currentPharmacy = data.user;
-            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-            localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
-          }
+          setActiveSession(data.session_token, data.user || currentPharmacy);
           console.log('[AUTH BRIDGE] Successfully created/refreshed backend session token.');
-          return sessionToken;
+          return data.session_token;
         }
       }
     } catch (err) {
       console.warn('[AUTH BRIDGE] Error refreshing backend session token:', err);
     }
 
-    return sessionToken;
+    return getActiveAuthToken();
   };
 
   /**
@@ -139,8 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
    * automatically re-bridges Firebase -> backend on HTTP 401 Unauthorized with a single retry.
    */
   const authenticatedFetch = async (url, options = {}, retryCount = 0) => {
-    if (!sessionToken) {
-      await ensureBackendAuthSession(false);
+    let token = getActiveAuthToken();
+    if (!token) {
+      token = await ensureBackendAuthSession(false);
     }
 
     const opt = { ...options };
@@ -148,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     opt.headers = {
       ...baseHeaders,
       ...(options.headers || {}),
-      ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {})
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
 
     let res = await fetch(url, opt);
@@ -360,12 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await fetch(`${API_BASE_URL}/api/auth/logout`, { credentials: 'omit', headers: getAuthHeaders(), method: 'POST' });
       } catch {}
-      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
-      sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
-      localStorage.removeItem(ACTIVE_TOKEN_KEY);
-      sessionToken = null;
-      currentPharmacy = null;
+      setActiveSession(null, null);
       showScreen('auth');
       showAuthNotice('Signed out of pharmacy workspace.', 'info');
     });
@@ -492,10 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
               return;
             }
 
-            sessionToken = data.session_token;
-            sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-            currentPharmacy = data.user;
-            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+            setActiveSession(data.session_token, data.user);
 
             if (data.needs_setup) {
               showScreen('signup');
@@ -553,10 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        sessionToken = data.session_token;
-        sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-        currentPharmacy = data.user;
-        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        setActiveSession(data.session_token, data.user);
 
         if (data.needs_setup) {
           showScreen('signup');
@@ -653,10 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      sessionToken = data.session_token;
-      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-      currentPharmacy = data.user;
-      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+      setActiveSession(data.session_token, data.user);
 
       if (data.existing_user) {
         showAuthNotice('Welcome back! Logging in…', 'success');
@@ -735,10 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        sessionToken = data.session_token;
-        sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-        currentPharmacy = data.user;
-        sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+        setActiveSession(data.session_token, data.user);
 
         if (data.existing_user && !data.needs_setup) {
           showAuthNotice('Welcome back! Logging in…', 'success');
@@ -815,10 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      sessionToken = data.session_token;
-      sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-      currentPharmacy = data.user;
-      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+      setActiveSession(data.session_token, data.user);
 
       if (data.existing_user) {
         showAuthNotice('Welcome back! Logging in…', 'success');
@@ -1138,10 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
               return;
             }
 
-            sessionToken = data.session_token;
-            sessionStorage.setItem(ACTIVE_TOKEN_KEY, sessionToken);
-            currentPharmacy = data.user;
-            sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(currentPharmacy));
+            setActiveSession(data.session_token, data.user);
 
             setTimeout(() => {
               if (data.user && (data.user.setup_completed || data.user.setupCompleted)) {
@@ -2137,7 +2137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const getBillDocumentUrl = (bill, isDownload = false) => {
     if (!bill) return '#';
-    const token = sessionToken || localStorage.getItem(ACTIVE_TOKEN_KEY) || sessionStorage.getItem(ACTIVE_TOKEN_KEY) || '';
+    const token = getActiveAuthToken() || '';
     let url = '';
     if (bill.originalFileUrl && bill.originalFileUrl.startsWith('/api/bills/')) {
       url = `${API_BASE_URL}${bill.originalFileUrl}`;
@@ -2674,10 +2674,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const t3 = setTimeout(() => setPipelineStep(3), 1200); // 3. Understanding invoice...
     const t4 = setTimeout(() => setPipelineStep(4), 2200); // 4. Extracting bill information...
 
+    const activeToken = getActiveAuthToken();
     try {
       const res = await fetch(`${API_BASE_URL}/api/bills/analyze`, {
         method: 'POST',
-        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+        headers: activeToken ? { 'Authorization': `Bearer ${activeToken}` } : {},
         body: formData
       });
 
@@ -2951,8 +2952,10 @@ document.addEventListener('DOMContentLoaded', () => {
       ocrConfirmSaveBtn.disabled = true;
       ocrConfirmSaveBtn.textContent = 'Saving to Real Inventory…';
 
+      const activeToken = getActiveAuthToken();
       const payload = {
         bill_id: currentCapturedBill.bill_id,
+        session_token: activeToken || '',
         distributor: currentCapturedBill.distributor || 'Unspecified Supplier',
         invoice_no: currentCapturedBill.invoice_no || currentCapturedBill.invoiceNo || 'UNSPECIFIED',
         invoice_date: currentCapturedBill.invoice_date || currentCapturedBill.date || new Date().toISOString().split('T')[0],
@@ -3587,12 +3590,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await fetch(`${API_BASE_URL}/api/auth/logout`, { credentials: 'omit', headers: getAuthHeaders(), method: 'POST' });
       } catch {}
-      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
-      sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
-      localStorage.removeItem(ACTIVE_TOKEN_KEY);
-      sessionToken = null;
-      currentPharmacy = null;
+      setActiveSession(null, null);
       showScreen('auth');
       showAuthNotice('Signed out of pharmacy workspace.', 'info');
     });
@@ -3707,12 +3705,7 @@ document.addEventListener('DOMContentLoaded', () => {
               await fbUser.reload();
             } catch {}
             if (!fbUser.emailVerified) {
-              sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-              localStorage.removeItem(ACTIVE_SESSION_KEY);
-              sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
-              localStorage.removeItem(ACTIVE_TOKEN_KEY);
-              sessionToken = null;
-              currentPharmacy = null;
+              setActiveSession(null, null);
 
               pendingRegistration.email = fbUser.email;
               const maskedDisplay = document.getElementById('maskedEmailDisplay');
@@ -3736,12 +3729,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await fbUser.reload();
         } catch {}
         if (!fbUser.emailVerified) {
-          sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-          localStorage.removeItem(ACTIVE_SESSION_KEY);
-          sessionStorage.removeItem(ACTIVE_TOKEN_KEY);
-          localStorage.removeItem(ACTIVE_TOKEN_KEY);
-          sessionToken = null;
-          currentPharmacy = null;
+          setActiveSession(null, null);
 
           pendingRegistration.email = fbUser.email;
           const maskedDisplay = document.getElementById('maskedEmailDisplay');

@@ -920,12 +920,17 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _get_auth_user(self):
+    def _get_auth_user(self, req_data=None):
         auth_header = self.headers.get('Authorization', '')
         token = None
         if auth_header.startswith('Bearer '):
             token = auth_header[7:].strip()
+        elif auth_header:
+            token = auth_header.strip()
         
+        if not token:
+            token = self.headers.get('X-Session-Token', '').strip() or self.headers.get('X-Auth-Token', '').strip() or None
+
         if not token:
             cookie = self.headers.get('Cookie', '')
             if 'exp_session=' in cookie:
@@ -937,6 +942,9 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 token = q_parsed.get('token', [''])[0].strip() or q_parsed.get('session_token', [''])[0].strip() or q_parsed.get('auth_token', [''])[0].strip() or None
             except Exception:
                 token = None
+
+        if not token and isinstance(req_data, dict):
+            token = (req_data.get('session_token') or req_data.get('token') or req_data.get('auth_token') or '').strip() or None
                 
         if not token:
             return None
@@ -1880,7 +1888,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                     })
 
         elif path == '/api/onboarding/complete':
-            user = self._get_auth_user()
+            user = self._get_auth_user(req_data)
             if not user:
                 return self._send_json({"error": "Unauthorized session."}, 401)
                 
@@ -1920,7 +1928,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             return self._send_json({"success": True, "user": sanitize_user(updated_user)})
 
         elif path == '/api/bills/confirm':
-            user = self._get_auth_user()
+            user = self._get_auth_user(req_data)
             if not user:
                 return self._send_json({"error": "Unauthorized session."}, 401)
                 
@@ -2059,7 +2067,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 return self._send_json({"error": f"Failed to record purchase bill: {str(e)}"}, 500)
 
         elif path == '/api/profile/update':
-            user = self._get_auth_user()
+            user = self._get_auth_user(req_data)
             if not user:
                 return self._send_json({"error": "Unauthorized session."}, 401)
 
@@ -2087,7 +2095,7 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
             return self._send_json({"success": True, "user": sanitize_user(updated_user)})
 
         elif path == '/api/profile/photo':
-            user = self._get_auth_user()
+            user = self._get_auth_user(req_data)
             if not user:
                 return self._send_json({"error": "Unauthorized session."}, 401)
 
