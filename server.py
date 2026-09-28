@@ -1318,6 +1318,16 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 return self._send_json({"error": "Unauthorized"}, 401)
             return self._send_json({"user": sanitize_user(user)})
 
+        elif path == '/api/notifications':
+            user = self._get_auth_user()
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, text, type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC", (user['id'],))
+                notifs = [dict(r) for r in cursor.fetchall()]
+            return self._send_json({"notifications": notifs})
+
         if path == '/' or path == '/index.html':
             file_path = os.path.join(BASE_DIR, 'index.html')
         else:
@@ -2122,6 +2132,35 @@ class ExpiredNotHandler(BaseHTTPRequestHandler):
                 updated_user = cursor.fetchone()
 
             return self._send_json({"success": True, "user": sanitize_user(updated_user)})
+
+        elif path == '/api/notifications':
+            user = self._get_auth_user(req_data)
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+            text = (req_data.get('text') or '').strip()
+            n_type = (req_data.get('type') or 'system').strip()
+            if not text:
+                return self._send_json({"error": "Notification text required."}, 400)
+            n_id = f"NOTIF_{uuid.uuid4().hex}"
+            now = int(time.time())
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO notifications (id, user_id, text, type, is_read, created_at)
+                    VALUES (?, ?, ?, ?, 0, ?)
+                ''', (n_id, user['id'], text, n_type, now))
+                conn.commit()
+            return self._send_json({"success": True, "id": n_id, "created_at": now})
+
+        elif path == '/api/notifications/clear':
+            user = self._get_auth_user(req_data)
+            if not user:
+                return self._send_json({"error": "Unauthorized session."}, 401)
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user['id'],))
+                conn.commit()
+            return self._send_json({"success": True, "cleared": True})
 
         elif path == '/api/auth/logout':
             auth_header = self.headers.get('Authorization', '')

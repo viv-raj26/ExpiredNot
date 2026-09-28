@@ -261,7 +261,26 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Could not fetch bills from backend:', e);
     }
 
-    // 3. Fallback scoped local storage
+    // 3. Fetch real notifications from SQLite backend
+    try {
+      const notifRes = await authenticatedFetch(`${API_BASE_URL}/api/notifications`);
+      if (notifRes.ok) {
+        const notifData = await notifRes.json();
+        if (notifData.notifications) {
+          pharmacyDb.notifications = notifData.notifications.map(n => ({
+            id: n.id,
+            text: n.text,
+            type: n.type || 'system',
+            read: Boolean(n.is_read),
+            timestamp: n.created_at ? new Date(n.created_at * 1000).toLocaleString() : 'Recent'
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch notifications from backend:', e);
+    }
+
+    // 4. Fallback scoped local storage
     const raw = localStorage.getItem(`expirednot_data_${pharmacyId}`);
     if (raw) {
       try {
@@ -269,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pharmacyDb.bills.length && local.bills) pharmacyDb.bills = local.bills;
         pharmacyDb.movements = local.movements || [];
         pharmacyDb.expenses = local.expenses || [];
-        pharmacyDb.notifications = local.notifications || [];
+        if (!pharmacyDb.notifications.length && local.notifications) pharmacyDb.notifications = local.notifications;
         pharmacyDb.activity = local.activity || [];
         if (!pharmacyDb.batches.length && local.batches) {
           pharmacyDb.batches = local.batches;
@@ -2227,6 +2246,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.generateDebitNote = (dist) => {
     alert(`Official Return Debit Note Generated for ${dist}. Hand copy to distributor rep for 100% credit adjustment.`);
+    addAppNotification(`Return Debit Note generated for ${dist}.`, 'return');
   };
 
   window.quickReturn = (batchId) => {
@@ -2336,10 +2356,58 @@ document.addEventListener('DOMContentLoaded', () => {
     if (anaTotalBills) anaTotalBills.textContent = pharmacyDb.bills.length;
   };
 
+  const escapeHtml = (str) => {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  const addAppNotification = async (text, type = 'system') => {
+    if (!text || isDemoMode) return;
+
+    const notifItem = {
+      id: 'NOTIF_' + Date.now(),
+      text: text,
+      type: type,
+      read: false,
+      timestamp: 'Just now'
+    };
+
+    pharmacyDb.notifications.unshift(notifItem);
+    renderNotificationsView();
+
+    const notifBadge = document.getElementById('notifBadge');
+    if (notifBadge) {
+      const unread = pharmacyDb.notifications.filter(n => !n.read).length;
+      notifBadge.textContent = unread;
+      notifBadge.hidden = unread === 0;
+    }
+
+    try {
+      await authenticatedFetch(`${API_BASE_URL}/api/notifications`, {
+        method: 'POST',
+        body: JSON.stringify({ text, type })
+      });
+    } catch (e) {
+      console.warn('Could not persist notification:', e);
+    }
+  };
+
   const renderNotificationsView = () => {
     const feed = document.getElementById('notificationsFeed');
     const empty = document.getElementById('emptyNotifsState');
+    const notifBadge = document.getElementById('notifBadge');
     if (!feed || !empty) return;
+
+    if (notifBadge) {
+      const unread = pharmacyDb.notifications.filter(n => !n.read).length;
+      notifBadge.textContent = unread;
+      notifBadge.hidden = unread === 0;
+    }
 
     if (pharmacyDb.notifications.length === 0) {
       feed.hidden = true;
@@ -2351,15 +2419,274 @@ document.addEventListener('DOMContentLoaded', () => {
     feed.hidden = false;
 
     feed.innerHTML = pharmacyDb.notifications.map(n => `
-      <div style="display:flex; gap:0.75rem; padding:0.85rem 1rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.65rem;">
-        <span style="color:var(--brand-primary); font-size:1.1rem;">🔔</span>
+      <div style="display:flex; gap:0.75rem; padding:0.85rem 1rem; background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:0.65rem; align-items:flex-start;">
+        <span style="font-size:1.15rem; flex-shrink:0;">${n.type === 'bill' ? '🧾' : (n.type === 'inventory' ? '💊' : (n.type === 'return' ? '📦' : (n.type === 'expense' ? '💰' : '🔔')))}</span>
         <div style="flex:1;">
-          <div style="font-weight:600; color:var(--color-text-main); font-size:0.875rem;">${n.text}</div>
-          <div style="font-size:0.725rem; color:var(--color-text-muted);">${n.timestamp}</div>
+          <div style="font-weight:600; color:var(--color-text-main); font-size:0.875rem;">${escapeHtml(n.text)}</div>
+          <div style="font-size:0.725rem; color:var(--color-text-muted); margin-top:0.2rem;">${escapeHtml(n.timestamp)}</div>
         </div>
       </div>
     `).join('');
   };
+
+  const clearAllNotifsBtn = document.getElementById('clearAllNotifsBtn');
+  if (clearAllNotifsBtn) {
+    clearAllNotifsBtn.addEventListener('click', async () => {
+      pharmacyDb.notifications = [];
+      savePharmacyData();
+      renderNotificationsView();
+
+      const notifBadge = document.getElementById('notifBadge');
+      if (notifBadge) {
+        notifBadge.textContent = 0;
+        notifBadge.hidden = true;
+      }
+
+      try {
+        await authenticatedFetch(`${API_BASE_URL}/api/notifications/clear`, {
+          method: 'POST'
+        });
+      } catch (e) {
+        console.warn('Could not clear notifications on backend:', e);
+      }
+    });
+  }
+
+  // ==========================================================================
+  // 7C. GLOBAL TOPBAR SEARCH CONTROLLER (CENTER HEADER)
+  // ==========================================================================
+  const globalSearchInput = document.getElementById('globalSearchInput');
+  const globalSearchClearBtn = document.getElementById('globalSearchClearBtn');
+  const globalSearchResultsDropdown = document.getElementById('globalSearchResultsDropdown');
+  const globalSearchContainer = document.getElementById('globalSearchContainer');
+
+  let globalSearchDebounceTimer = null;
+
+  const performGlobalSearch = (query) => {
+    if (!globalSearchResultsDropdown) return;
+
+    const q = (query || '').trim().toLowerCase();
+    if (!q) {
+      globalSearchResultsDropdown.innerHTML = '';
+      globalSearchResultsDropdown.classList.add('view-hidden');
+      if (globalSearchClearBtn) globalSearchClearBtn.hidden = true;
+      return;
+    }
+
+    if (globalSearchClearBtn) globalSearchClearBtn.hidden = false;
+
+    // 1. Medicines matching
+    const medMatches = new Map();
+    (pharmacyDb.batches || []).forEach(b => {
+      const name = b.name || '';
+      const generic = b.generic_name || '';
+      if (name.toLowerCase().includes(q) || generic.toLowerCase().includes(q)) {
+        const normKey = name.trim().toLowerCase();
+        if (!medMatches.has(normKey)) {
+          medMatches.set(normKey, {
+            name: b.name,
+            generic: b.generic_name || '',
+            pack: b.pack || '',
+            totalStock: b.quantity || 0,
+            batchCount: 1
+          });
+        } else {
+          const m = medMatches.get(normKey);
+          m.totalStock += (b.quantity || 0);
+          m.batchCount += 1;
+        }
+      }
+    });
+
+    // 2. Batches matching
+    const batchMatches = (pharmacyDb.batches || []).filter(b => {
+      const batchNo = b.batchNo || '';
+      const rack = b.rack || '';
+      return batchNo.toLowerCase().includes(q) || rack.toLowerCase().includes(q);
+    });
+
+    // 3. Wholesale Suppliers / Stockists matching
+    const supplierSet = new Set();
+    (pharmacyDb.batches || []).forEach(b => {
+      if (b.distributor && b.distributor.toLowerCase().includes(q)) {
+        supplierSet.add(b.distributor.trim());
+      }
+    });
+    (pharmacyDb.bills || []).forEach(bill => {
+      if (bill.distributor && bill.distributor.toLowerCase().includes(q)) {
+        supplierSet.add(bill.distributor.trim());
+      }
+    });
+
+    // 4. Bills & Purchase Invoices matching
+    const billMatches = (pharmacyDb.bills || []).filter(bill => {
+      const invNo = bill.invoiceNo || '';
+      const dist = bill.distributor || '';
+      return invNo.toLowerCase().includes(q) || dist.toLowerCase().includes(q);
+    });
+
+    const totalResults = medMatches.size + batchMatches.length + supplierSet.size + billMatches.length;
+
+    if (totalResults === 0) {
+      globalSearchResultsDropdown.innerHTML = `
+        <div class="global-search-empty">
+          <span>No matching records found for "<strong>${escapeHtml(query)}</strong>"</span>
+        </div>
+      `;
+      globalSearchResultsDropdown.classList.remove('view-hidden');
+      return;
+    }
+
+    let html = '';
+
+    // Render Medicines
+    if (medMatches.size > 0) {
+      html += `
+        <div class="global-search-group">
+          <div class="global-search-group-title">💊 Medicines (${medMatches.size})</div>
+          ${Array.from(medMatches.values()).slice(0, 5).map(m => `
+            <div class="global-search-item" data-type="medicine" data-name="${escapeHtml(m.name)}">
+              <div class="global-search-item-main">
+                <span class="global-search-item-title">${escapeHtml(m.name)}</span>
+                <span class="global-search-item-sub">${m.generic ? escapeHtml(m.generic) + ' • ' : ''}${m.batchCount} active batch${m.batchCount > 1 ? 'es' : ''}</span>
+              </div>
+              <span class="global-search-item-meta">${m.totalStock} units</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Render Batches
+    if (batchMatches.length > 0) {
+      html += `
+        <div class="global-search-group">
+          <div class="global-search-group-title">📦 Batches (${batchMatches.length})</div>
+          ${batchMatches.slice(0, 5).map(b => `
+            <div class="global-search-item" data-type="batch" data-batch="${escapeHtml(b.batchNo)}" data-name="${escapeHtml(b.name)}">
+              <div class="global-search-item-main">
+                <span class="global-search-item-title"><span class="table-batch-pill">${escapeHtml(b.batchNo)}</span> ${escapeHtml(b.name)}</span>
+                <span class="global-search-item-sub">Exp: ${escapeHtml(b.expiryDate)} • ${escapeHtml(b.rack || 'Rack A-1')}</span>
+              </div>
+              <span class="global-search-item-meta">${b.quantity} units</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Render Suppliers
+    if (supplierSet.size > 0) {
+      html += `
+        <div class="global-search-group">
+          <div class="global-search-group-title">🏢 Wholesale Suppliers (${supplierSet.size})</div>
+          ${Array.from(supplierSet).slice(0, 4).map(s => `
+            <div class="global-search-item" data-type="supplier" data-supplier="${escapeHtml(s)}">
+              <div class="global-search-item-main">
+                <span class="global-search-item-title">${escapeHtml(s)}</span>
+                <span class="global-search-item-sub">Registered stockist</span>
+              </div>
+              <span class="global-search-item-meta">View in Rack →</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Render Bills
+    if (billMatches.length > 0) {
+      html += `
+        <div class="global-search-group">
+          <div class="global-search-group-title">🧾 Purchase Invoices (${billMatches.length})</div>
+          ${billMatches.slice(0, 4).map(bill => `
+            <div class="global-search-item" data-type="bill" data-bill-id="${escapeHtml(bill.id)}">
+              <div class="global-search-item-main">
+                <span class="global-search-item-title">Invoice #${escapeHtml(bill.invoiceNo)}</span>
+                <span class="global-search-item-sub">${escapeHtml(bill.distributor)} • ${escapeHtml(bill.date || '—')}</span>
+              </div>
+              <span class="global-search-item-meta">₹${(parseFloat(bill.totalAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    globalSearchResultsDropdown.innerHTML = html;
+    globalSearchResultsDropdown.classList.remove('view-hidden');
+  };
+
+  if (globalSearchInput) {
+    globalSearchInput.addEventListener('input', () => {
+      clearTimeout(globalSearchDebounceTimer);
+      globalSearchDebounceTimer = setTimeout(() => {
+        performGlobalSearch(globalSearchInput.value);
+      }, 150);
+    });
+
+    globalSearchInput.addEventListener('focus', () => {
+      if (globalSearchInput.value.trim()) {
+        performGlobalSearch(globalSearchInput.value);
+      }
+    });
+
+    globalSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (globalSearchResultsDropdown) globalSearchResultsDropdown.classList.add('view-hidden');
+        globalSearchInput.blur();
+      }
+    });
+  }
+
+  if (globalSearchClearBtn) {
+    globalSearchClearBtn.addEventListener('click', () => {
+      if (globalSearchInput) {
+        globalSearchInput.value = '';
+        globalSearchInput.focus();
+      }
+      if (globalSearchResultsDropdown) {
+        globalSearchResultsDropdown.innerHTML = '';
+        globalSearchResultsDropdown.classList.add('view-hidden');
+      }
+      globalSearchClearBtn.hidden = true;
+    });
+  }
+
+  if (globalSearchResultsDropdown) {
+    globalSearchResultsDropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.global-search-item');
+      if (!item) return;
+
+      const type = item.dataset.type;
+      if (type === 'medicine') {
+        const medName = item.dataset.name;
+        switchWorkspaceTab('inventory');
+        const invInput = document.getElementById('inventorySearchInput');
+        if (invInput) {
+          invInput.value = medName;
+          invInput.dispatchEvent(new Event('input'));
+        }
+      } else if (type === 'batch') {
+        switchWorkspaceTab('batches');
+      } else if (type === 'supplier') {
+        switchWorkspaceTab('suppliers');
+      } else if (type === 'bill') {
+        const billId = item.dataset.billId;
+        if (billId && window.openBillDetail) {
+          window.openBillDetail(billId);
+        } else {
+          switchWorkspaceTab('bills');
+        }
+      }
+
+      globalSearchResultsDropdown.classList.add('view-hidden');
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (globalSearchContainer && !globalSearchContainer.contains(e.target)) {
+      if (globalSearchResultsDropdown) globalSearchResultsDropdown.classList.add('view-hidden');
+    }
+  });
 
   // ==========================================================================
   // 7B. BILL HISTORY & DOCUMENT ARCHIVE CONTROLLER
@@ -2387,16 +2714,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let billSearchDebounceTimer = null;
   let serverSearchedBills = null; // null if not active
-
-  const escapeHtml = (str) => {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  };
 
   const getBillDocumentUrl = (bill, isDownload = false) => {
     if (!bill) return '#';
@@ -3328,6 +3645,8 @@ document.addEventListener('DOMContentLoaded', () => {
           timestamp: 'Just now'
         });
 
+        addAppNotification(`Purchase Bill #${payload.invoice_no} (${payload.distributor}) confirmed & added (${payload.items.length} items, ₹${(data.total_amount || 0).toLocaleString('en-IN')})`, 'bill');
+
         savePharmacyData();
         currentCapturedBill = null;
         if (ocrReviewContainer) ocrReviewContainer.hidden = true;
@@ -3451,6 +3770,8 @@ document.addEventListener('DOMContentLoaded', () => {
         timestamp: 'Just now'
       });
 
+      addAppNotification(`Added ${mMedName.value.trim()} (Batch #${mBatchNo.value.trim().toUpperCase()}) with ${qty} units to inventory.`, 'inventory');
+
       savePharmacyData();
       closeAddMedModal();
       refreshAllWorkspaceViews();
@@ -3523,6 +3844,8 @@ document.addEventListener('DOMContentLoaded', () => {
         notes: movNotes
       });
 
+      addAppNotification(`Logged ${movType} movement: ${movQty} units of ${batch.name} (Batch #${batch.batchNo}).`, 'movement');
+
       savePharmacyData();
       closeMovementModal();
       refreshAllWorkspaceViews();
@@ -3574,6 +3897,8 @@ document.addEventListener('DOMContentLoaded', () => {
         desc: expDesc,
         amount: expAmount
       });
+
+      addAppNotification(`Expense recorded: ₹${expAmount.toLocaleString('en-IN')} for ${expCategory} (${expDesc}).`, 'expense');
 
       savePharmacyData();
       closeExpenseModal();

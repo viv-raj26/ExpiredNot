@@ -885,6 +885,19 @@
           </div>
         </div>
 
+        <!-- Center: Global Search Bar -->
+        <div class="topbar-center" id="globalSearchContainer">
+          <div class="global-search-bar">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="globalSearchInput" class="global-search-input" placeholder="Search medicines, batches, suppliers, bills..." autocomplete="off" spellcheck="false" aria-label="Global Search">
+            <button type="button" id="globalSearchClearBtn" class="global-search-clear-btn" hidden title="Clear search">×</button>
+          </div>
+          <div id="globalSearchResultsDropdown" class="global-search-dropdown view-hidden"></div>
+        </div>
+
         <!-- Right: Actions & User Menu -->
         <div class="topbar-right">
           
@@ -1804,9 +1817,14 @@
              ==================================================================== -->
         <section class="content-panel panel-hidden" id="paneNotifications" aria-label="Notifications Feed">
           
-          <div class="section-intro-header">
-            <h2 class="section-heading text-gradient-brand">Notifications & Alerts</h2>
-            <p class="section-subtext">Real-time alerts triggered exclusively when actual inventory events occur.</p>
+          <div class="section-intro-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 class="section-heading text-gradient-brand">Notifications & Alerts</h2>
+              <p class="section-subtext">Real-time alerts triggered exclusively when actual inventory events occur.</p>
+            </div>
+            <button type="button" class="btn-secondary" id="clearAllNotifsBtn" style="font-size: 0.8125rem; height: 34px;">
+              Clear All
+            </button>
           </div>
 
           <div class="dash-card gradient-border-card">
